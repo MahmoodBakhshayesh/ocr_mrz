@@ -12,7 +12,7 @@ class OcrMrzReader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CameraKitOcrPlusView(onTextRead: (c){
-      processFrameLines(c.lines.map((a)=>a.text).toList(),onFoundMrz);
+      processFrameLines(c,onFoundMrz);
     });
   }
 }

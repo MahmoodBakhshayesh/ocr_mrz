@@ -1,8 +1,9 @@
 import 'dart:developer';
 
+import 'package:camera_kit_plus/camera_kit_plus.dart';
 import 'package:ocr_mrz/mrz_result_class.dart';
 
-OcrMrzResult? parseMRZ(String line1, String line2,{List<String> baseLines = const []}) {
+OcrMrzResult? parseMRZ(String line1, String line2,{List<String> baseLines = const [],required OcrData ocrData}) {
   try {
     line1 = line1.padRight(44, '<').substring(0, 44);
     line2 = line2.padRight(44, '<').substring(0, 44);
@@ -49,6 +50,7 @@ OcrMrzResult? parseMRZ(String line1, String line2,{List<String> baseLines = cons
       'countryCode': countryCode,
       'lastName': lastName,
       'firstName': firstName,
+      'ocrData': ocrData.toJson(),
       'passportNumber': passportNumber,
       'nationality': nationality,
       'birthDate': formatDate(birthDateRaw),
@@ -72,23 +74,36 @@ List<String> extractMrzLines(List<String> allLines) {
       .toList();
 }
 
-void processFrameLines(List<String> allLines, void Function(OcrMrzResult res) onFoundMrz) {
+List<String> extractWords(String text) {
+  final wordRegExp = RegExp(r'\b\w+\b');
+  return wordRegExp.allMatches(text).map((match) => match.group(0)!).toList();
+}
+
+void processFrameLines(OcrData ocrData, void Function(OcrMrzResult res) onFoundMrz) {
+  List<String> allLines = ocrData.lines.map((a)=>a.text).toList();
   // allLines = allLines.map((a)=>normalizeToMrzCompatible(a)).toList();
   // log("processFrameLines for ${allLines.length} lines");
   try {
     final mrzLines = extractMrzLines(allLines);
+    List<String> notMrz = List<String>.from(allLines.where((a)=>!mrzLines.contains(a)));
     if (mrzLines.length < 2) return;
     final fixedMrzLines = mrzLines.map((a) => normalizeMrzLine(a)).toList();
     final copy = List<String>.from(fixedMrzLines);
     fixedMrzLines[1] = repairMrzLine2(fixedMrzLines[1]);
-    final parsed = parseMRZ(fixedMrzLines[0], fixedMrzLines[1],baseLines: copy);
+    final parsed = parseMRZ(fixedMrzLines[0], fixedMrzLines[1],baseLines: copy, ocrData: ocrData);
     if (parsed == null) {
       return;
     }
-    final vizLines = allLines.where((line) => !fixedMrzLines.contains(line)).toList();
+    final vizLines = notMrz;
     final vizLinesLower = vizLines.map((e) => e.toLowerCase()).toList();
-    final isFirstNameValid = vizLinesLower.any((line) => line.contains(parsed.firstName.split(" ").join("<").toLowerCase()));
-    final isLastNameValid = vizLinesLower.any((line) => line.contains(parsed.lastName.split(" ").join("<").toLowerCase()));
+    List<String> words = [];
+    for (var l in vizLinesLower) {
+      words.addAll(extractWords(l));
+    }
+    final isFirstNameValid = parsed.firstName.split(" ").every((a)=>words.contains(a.toLowerCase()));
+    final isLastNameValid = parsed.lastName.split(" ").every((a)=>words.contains(a.toLowerCase()));
+    // final isFirstNameValid = vizLinesLower.any((line) => line.contains(parsed.firstName.split(" ").join("<").toLowerCase()));
+    // final isLastNameValid = vizLinesLower.any((line) => line.contains(parsed.lastName.split(" ").join("<").toLowerCase()));
     // final isFirstNameValid = matchesMrzName(parsed.firstName,vizLinesLower);
     // final isLastNameValid = matchesMrzName(parsed.lastName,vizLinesLower);
     if (isFirstNameValid && isLastNameValid) {
@@ -99,10 +114,10 @@ void processFrameLines(List<String> allLines, void Function(OcrMrzResult res) on
       // log(copy.join("\n"));
       onFoundMrz(parsed);
     } else {
-      // if (!isFirstNameValid) {
-      //   log("${parsed.firstName.toLowerCase()} in");
-      //   log(vizLinesLower.join("\n"));
-      // }
+      if (!isFirstNameValid) {
+        log("${parsed.firstName.split(" ")} in $words");
+        // log(vizLinesLower.join("\n"));
+      }
       // if (!isLastNameValid) {
       //   log("${parsed.lastName.toLowerCase()} in");
       //   log(vizLinesLower.join("\n"));

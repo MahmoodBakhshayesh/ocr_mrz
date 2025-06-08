@@ -1,3 +1,5 @@
+import 'package:camera_kit_plus/camera_kit_plus.dart';
+
 class OcrMrzResult {
   String documentType;
   String countryCode;
@@ -8,6 +10,7 @@ class OcrMrzResult {
   DateTime? birthDate;
   DateTime? expiryDate;
   List<String> mrzLines;
+  OcrData ocrData;
 
   OcrMrzResult({
     required this.documentType,
@@ -19,6 +22,7 @@ class OcrMrzResult {
     required this.birthDate,
     required this.expiryDate,
     required this.mrzLines,
+    required this.ocrData,
   });
 
   factory OcrMrzResult.fromJson(Map<String, dynamic> json) => OcrMrzResult(
@@ -31,6 +35,7 @@ class OcrMrzResult {
     mrzLines: List<String>.from(json["mrzLines"]),
     birthDate: DateTime.tryParse(json["birthDate"]),
     expiryDate: DateTime.tryParse(json["expiryDate"]),
+    ocrData: OcrData.fromJson(json["ocrData"]),
   );
 
   Map<String, dynamic> toJson() => {
@@ -39,7 +44,7 @@ class OcrMrzResult {
     "lastName": lastName,
     "firstName": firstName,
     "passportNumber": passportNumber,
-
+    "ocrData":ocrData.toJson(),
     "nationality": nationality,
     "mrzLines": mrzLines,
     "birthDate":birthDate==null?null: "${birthDate!.year.toString().padLeft(4, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.day.toString().padLeft(2, '0')}",
