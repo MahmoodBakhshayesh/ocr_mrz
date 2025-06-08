@@ -5,8 +5,8 @@ class OcrMrzResult {
   String firstName;
   String passportNumber;
   String nationality;
-  DateTime birthDate;
-  DateTime expiryDate;
+  DateTime? birthDate;
+  DateTime? expiryDate;
   List<String> mrzLines;
 
   OcrMrzResult({
@@ -29,8 +29,8 @@ class OcrMrzResult {
     passportNumber: json["passportNumber"],
     nationality: json["nationality"],
     mrzLines: List<String>.from(json["mrzLines"]),
-    birthDate: DateTime.parse(json["birthDate"]),
-    expiryDate: DateTime.parse(json["expiryDate"]),
+    birthDate: DateTime.tryParse(json["birthDate"]),
+    expiryDate: DateTime.tryParse(json["expiryDate"]),
   );
 
   Map<String, dynamic> toJson() => {
@@ -39,9 +39,10 @@ class OcrMrzResult {
     "lastName": lastName,
     "firstName": firstName,
     "passportNumber": passportNumber,
+
     "nationality": nationality,
     "mrzLines": mrzLines,
-    "birthDate": "${birthDate.year.toString().padLeft(4, '0')}-${birthDate.month.toString().padLeft(2, '0')}-${birthDate.day.toString().padLeft(2, '0')}",
-    "expiryDate": "${expiryDate.year.toString().padLeft(4, '0')}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}",
+    "birthDate":birthDate==null?null: "${birthDate!.year.toString().padLeft(4, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.day.toString().padLeft(2, '0')}",
+    "expiryDate": expiryDate==null?null:"${expiryDate!.year.toString().padLeft(4, '0')}-${expiryDate!.month.toString().padLeft(2, '0')}-${expiryDate!.day.toString().padLeft(2, '0')}",
   };
 }

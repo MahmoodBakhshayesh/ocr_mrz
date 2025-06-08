@@ -16,7 +16,7 @@ class PassportDialog extends StatelessWidget {
     this.width = 350,
     this.height = 220,
   });
-  String _formatDate(DateTime date) => DateFormat('yyyy-MM-dd').format(date);
+  String _formatDate(DateTime? date) =>date==null?'': DateFormat('yyyy-MM-dd').format(date);
 
   @override
   Widget build(BuildContext context) {
