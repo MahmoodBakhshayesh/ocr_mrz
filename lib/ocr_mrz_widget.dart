@@ -3,7 +3,9 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:camera_kit_plus/camera_kit_plus.dart';
 import 'package:ocr_mrz/mrz_result_class.dart';
+import 'package:ocr_mrz/passport_util.dart';
 
+import 'mrz_result_class_fix.dart';
 import 'mrz_util.dart';
 class OcrMrzReader extends StatelessWidget {
   final void Function(OcrMrzResult res) onFoundMrz;
@@ -12,7 +14,8 @@ class OcrMrzReader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CameraKitOcrPlusView(onTextRead: (c){
-      processFrameLines(c,onFoundMrz);
+      // processFrameLines(c,onFoundMrz);
+      handleOcr(c,onFoundMrz);
     });
   }
 }

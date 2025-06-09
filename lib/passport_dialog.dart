@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ocr_mrz/mrz_result_class.dart';
 import 'package:intl/intl.dart';
 
+import 'mrz_result_class_fix.dart';
 import 'ocr_data_dialog.dart';
 
 class PassportDialog extends StatefulWidget {
@@ -49,6 +50,7 @@ class _PassportDialogState extends State<PassportDialog> {
             _infoRow('Passport No', widget.result.passportNumber),
             _infoRow('Nationality', widget.result.nationality),
             _infoRow('Country Code', widget.result.countryCode),
+            _infoRow('Sex', widget.result.sex),
             _infoRow('Birth Date', _formatDate(widget.result.birthDate)),
             _infoRow('Expiry Date', _formatDate(widget.result.expiryDate)),
             Divider(),
