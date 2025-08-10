@@ -8,11 +8,8 @@ import 'ocr_data_dialog.dart';
 class PassportDialog extends StatefulWidget {
 
   final OcrMrzResult result;
-
   final double width;
-
   final double height;
-
   const PassportDialog({
     super.key,
     required this.result,
@@ -34,7 +31,7 @@ class _PassportDialogState extends State<PassportDialog> {
       insetPadding: EdgeInsets.zero,
       child: Container(
         width: widget.width,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: Colors.blueGrey.shade900,
           borderRadius: BorderRadius.circular(16),
@@ -46,13 +43,16 @@ class _PassportDialogState extends State<PassportDialog> {
           children: [
             _headerSection(context,widget.result),
             const SizedBox(height: 12),
-            _infoRow('Name', '${widget.result.firstName} ${widget.result.lastName}'),
-            _infoRow('Passport No', widget.result.passportNumber),
-            _infoRow('Nationality', widget.result.nationality),
-            _infoRow('Country Code', widget.result.countryCode),
-            _infoRow('Sex', widget.result.sex),
-            _infoRow('Birth Date', _formatDate(widget.result.birthDate)),
-            _infoRow('Expiry Date', _formatDate(widget.result.expiryDate)),
+            _infoRow('Name', '${widget.result.firstName} ${widget.result.lastName}',widget.result.valid.nameValid),
+            _infoRow('Passport No', widget.result.passportNumber,widget.result.valid.docNumberValid),
+            _infoRow('Nationality', widget.result.nationality,widget.result.valid.nationalityValid),
+            _infoRow('Country Code', widget.result.countryCode,widget.result.valid.countryValid),
+            _infoRow('Sex', widget.result.sex,true),
+            _infoRow('Birth Date', _formatDate(widget.result.birthDate),widget.result.valid.birthDateValid),
+            _infoRow('Expiry Date', _formatDate(widget.result.expiryDate),widget.result.valid.expiryDateValid),
+            _infoRow('Lines Length', "${widget.result.line1.length} ,${widget.result.line2.length}",widget.result.valid.linesLengthValid),
+            _infoRow('Final Check', "Validation",widget.result.valid.finalCheckValid),
+            _infoRow('Personal', "Validation",widget.result.valid.personalNumberValid),
             Divider(),
             _mrzSection(),
             Divider(),
@@ -86,7 +86,8 @@ class _PassportDialogState extends State<PassportDialog> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          '${widget.result.documentType} Passport',
+          '${widget.result.documentType}',
+
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -106,13 +107,15 @@ class _PassportDialogState extends State<PassportDialog> {
     );
   }
 
-  Widget _infoRow(String label, String value) {
+  Widget _infoRow(String label, String value,bool? validation) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
           SizedBox(width: 100, child: Text('$label:', style: const TextStyle(color: Colors.white70))),
           Expanded(child: Text(value, style: const TextStyle(color: Colors.white))),
+          validation == null?SizedBox():
+          Icon(validation?Icons.check_circle:Icons.close,color: validation?Colors.green:Colors.red,)
         ],
       ),
     );
