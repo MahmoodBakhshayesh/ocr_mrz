@@ -1,6 +1,6 @@
 name: ocr_mrz
 description: "A new Flutter package uses ocr to get mrz"
-version: 0.0.15
+version: 0.0.16
 homepage: https://github.com/MahmoodBakhshayesh/ocr_mrz
 
 environment:

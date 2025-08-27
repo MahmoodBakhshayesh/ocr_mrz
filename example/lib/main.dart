@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:ocr_mrz/ocr_setting_dialog.dart';
@@ -107,6 +108,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         setState(() {});
 
                         log("log recieved");
+                        log(jsonEncode(l.toJson()));
                       }
                     },
                   ),
