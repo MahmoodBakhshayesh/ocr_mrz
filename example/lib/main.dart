@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart';
 import 'package:ocr_mrz/ocr_mrz.dart';
 import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
+import 'package:ocr_mrz/orc_mrz_log_class.dart';
 import 'package:ocr_mrz/passport_dialog.dart';
 
 void main() {
@@ -41,6 +42,8 @@ class _MyHomePageState extends State<MyHomePage> {
     validateDocNumberValid: false,
     validateNames: true,
   );
+  int logCount = 0;
+  OcrMrzLog? lastLog;
 
   showFoundPassport(OcrMrzResult res) {
     scanning = false;
@@ -61,7 +64,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text("Passport Reader"),
+        title: Text("Passport Reader ${logCount}"),
 
         actions: [
           IconButton(
@@ -87,14 +90,48 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             Expanded(
-              child: OcrMrzReader(
-                setting: setting,
-                onFoundMrz: (a) {
-                  if (scanning) {
-                    showFoundPassport(a);
-                  }
-                  log("✅ ${a.documentType} matched:");
-                },
+              child: Stack(
+                children: [
+                  OcrMrzReader(
+                    setting: setting,
+                    onFoundMrz: (a) {
+                      if (scanning) {
+                        showFoundPassport(a);
+                      }
+                      log("✅ ${a.documentType} matched:");
+                    },
+                    mrzLogger: (l) {
+                      if (l.rawMrzLines.isNotEmpty) {
+                        logCount++;
+                        lastLog = l;
+                        setState(() {});
+
+                        log("log recieved");
+                      }
+                    },
+                  ),
+                  Positioned(
+                    bottom: 24,
+                    left: 0,
+                    right: 0,
+                    child:
+                        lastLog == null
+                            ? SizedBox()
+                            : Container(
+                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              color: Colors.white,
+                              child: Column(
+                                children: [
+                                  Row(children: [Expanded(child: FittedBox(child: Text(lastLog!.rawMrzLines.join("\n"))))]),
+                                  Divider(),
+                                  Row(children: [Expanded(child: FittedBox(child: Text(lastLog!.fixedMrzLines.join("\n"))))]),
+                                  Divider(),
+                                  Row(children: [Expanded(child: FittedBox(child: Text(lastLog!.validation.toString())))]),
+                                ],
+                              ),
+                            ),
+                  ),
+                ],
               ),
             ),
           ],

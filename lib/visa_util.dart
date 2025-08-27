@@ -6,6 +6,7 @@ import 'package:ocr_mrz/mrz_result_class_fix.dart'; // reuse your OcrMrzResult m
 import 'package:ocr_mrz/name_validation_data_class.dart';
 
 import 'ocr_mrz_settings_class.dart';
+import 'orc_mrz_log_class.dart';
 import 'passport_util.dart';
 import 'travel_doc_util.dart'; // reuse your flags
 // Reuse: isValidMrzCountry(String), _computeMrzCheckDigit(String), validateNames(...), extractWords(...)
@@ -15,19 +16,21 @@ Map<String, dynamic>? tryParseVisaMrzFromOcrLines(
     OcrData ocrData,
     OcrMrzSetting? setting,
     List<NameValidationData>? nameValidations,
+     void Function(OcrMrzLog log)? mrzLogger
     ) {
   final rawAllLines = ocrData.lines.map((e) => e.text).toList();
   final normalized = rawAllLines.map(_normalizeVisaLine).toList();
   final s = setting ?? OcrMrzSetting();
 
   // Try MRV-A (44) then MRV-B (36). First success wins.
-  return _findVisaPairAndParse(
+  final res =  _findVisaPairAndParse(
     normalized: normalized,
     rawAllLines: rawAllLines,
     targetLen: 44,
     validateSettings: s,
     nameValidations: nameValidations,
     ocr: ocrData,
+    mrzLogger: mrzLogger
   )
       ?? _findVisaPairAndParse(
         normalized: normalized,
@@ -36,7 +39,10 @@ Map<String, dynamic>? tryParseVisaMrzFromOcrLines(
         validateSettings: s,
         nameValidations: nameValidations,
         ocr: ocrData,
+        mrzLogger: mrzLogger
       );
+
+  return res;
 }
 
 Map<String, dynamic>? _findVisaPairAndParse({
@@ -46,6 +52,7 @@ Map<String, dynamic>? _findVisaPairAndParse({
   required OcrMrzSetting validateSettings,
   required List<NameValidationData>? nameValidations,
   required OcrData ocr,
+  required void Function(OcrMrzLog log)? mrzLogger
 }) {
   // Keep enforced length + original indices so we can form pairs reliably.
   final enforced = <int, String>{};
@@ -84,6 +91,7 @@ Map<String, dynamic>? _findVisaPairAndParse({
         validateSettings: validateSettings,
         nameValidations: nameValidations,
         ocr: ocr,
+        mrzLogger: mrzLogger
       );
       if (res != null) return res;
     }
@@ -100,6 +108,7 @@ Map<String, dynamic>? _findVisaPairAndParse({
         validateSettings: validateSettings,
         nameValidations: nameValidations,
         ocr: ocr,
+        mrzLogger: mrzLogger
       );
       if (res != null) return res;
     }
@@ -118,16 +127,33 @@ Map<String, dynamic>? _tryVisaPairIndices({
   required OcrMrzSetting validateSettings,
   required List<NameValidationData>? nameValidations,
   required OcrData ocr,
+  required void Function(OcrMrzLog log)? mrzLogger
 }) {
-  if (!enforced.containsKey(j)) return null;
+  if (!enforced.containsKey(j)) {
+    final rawAllLines = ocr.lines.map((e) => e.text).toList();
+    final rawMrzLines = rawAllLines.where((a)=>a.length>35 && a.contains("<<")).toList();
+    mrzLogger?.call(OcrMrzLog(rawText: ocr.text, rawMrzLines: rawMrzLines, fixedMrzLines: [line1],validation:OcrMrzValidation(),extractedData: {}));
+    return null;
+  }
   var candidateL2 = enforced[j]!;
 
   // Line-2 should NOT start with 'V' (it begins with doc number)
-  if (candidateL2.startsWith('V')) return null;
+  if (candidateL2.startsWith('V')) {
+    final rawAllLines = ocr.lines.map((e) => e.text).toList();
+    final rawMrzLines = rawAllLines.where((a)=>a.length>35 && a.contains("<<")).toList();
+    mrzLogger?.call(OcrMrzLog(rawText: ocr.text, rawMrzLines: rawMrzLines, fixedMrzLines: [line1],validation:OcrMrzValidation(),extractedData: {}));
+
+    return null;
+  }
 
   // Repair and sanity-check line 2 BEFORE parsing (reduces false positives)
   final line2 = _repairVisaLine2(candidateL2, targetLen);
-  if (!_looksLikeVisaLine2(line2)) return null;
+  if (!_looksLikeVisaLine2(line2)) {
+    final rawAllLines = ocr.lines.map((e) => e.text).toList();
+    final rawMrzLines = rawAllLines.where((a)=>a.length>35 && a.contains("<<")).toList();
+    mrzLogger?.call(OcrMrzLog(rawText: ocr.text, rawMrzLines: rawMrzLines, fixedMrzLines: [line1,line2],validation:OcrMrzValidation(),extractedData: {}));
+    return null;
+  }
 
   // Build otherLines (exclude the two MRZ lines by index)
   final otherLines = <String>[];
@@ -143,6 +169,8 @@ Map<String, dynamic>? _tryVisaPairIndices({
     otherLines: otherLines,
     validateSettings: validateSettings,
     nameValidations: nameValidations,
+    ocr: ocr,
+    mrzLogger: mrzLogger
   );
 
   if (parsed != null) {
@@ -311,8 +339,11 @@ Map<String, dynamic>? _parseVisaCommon({
   required List<String> otherLines,
   required OcrMrzSetting validateSettings,
   required List<NameValidationData>? nameValidations,
+  required OcrData ocr,
+  required void Function(OcrMrzLog log)? mrzLogger
 }) {
   try {
+    log("_parseVisaCommon");
     // --- Line 1 ---
     final documentType = line1.substring(0, 1); // 'V'
     final visaType = line1.substring(1, 2); // optional category by issuer
@@ -326,7 +357,6 @@ Map<String, dynamic>? _parseVisaCommon({
     firstName = _cleanMrzVisaName(firstName);
     lastName = _cleanMrzVisaName(lastName);
 
-    if (firstName.isEmpty || lastName.isEmpty) return null;
 
     // --- Line 2 ---
     final docNumber = line2.substring(0, 9);
@@ -356,32 +386,12 @@ Map<String, dynamic>? _parseVisaCommon({
     final expiryOk = !validateSettings.validateExpiryDateValid || validExpiry;
     final docOk = !validateSettings.validateDocNumberValid || validDoc;
 
-    if (!(namesOk && issuingOk && nationalityOk && birthOk && expiryOk && docOk)) return null;
 
-    // Build result similar to your passport result
-    // return {
-    //   'format': len == 44 ? 'MRV-A' : 'MRV-B',
-    //   'line1': line1,
-    //   'line2': line2,
-    //   'documentType': documentType, // 'V'
-    //   'visaType': visaType, // issuer-defined
-    //   'issuingState': issuingState,
-    //   'lastName': lastName,
-    //   'firstName': firstName,
-    //   'documentNumber': docNumber,
-    //   'nationality': nationality,
-    //   'birthDate': _parseMrzVisaDate(birth)?.toIso8601String(),
-    //   'expiryDate': _parseMrzVisaDate(expiry)?.toIso8601String(),
-    //   'sex': sex,
-    //   'optionalData': optional,
-    //   'checkDigits': {
-    //     'document': validDoc,
-    //     'birth': validBirth,
-    //     'expiry': validExpiry,
-    //     // no 'final' for visa MRZ
-    //   },
-    // };
-    return {
+    // if (!(namesOk && issuingOk && nationalityOk && birthOk && expiryOk && docOk)) return null;
+
+
+    final validation = validateMrzLineVisa(line1: line1, line2: line2, setting: validateSettings, otherLines: otherLines, firstName: firstName, lastName: lastName, country: issuingState, nationality: nationality, personalNumber: '', nameValidations: nameValidations, issuing: issuingState);
+    final resultMap =  {
       // Raw
       'line1': line1,
       'line2': line2,
@@ -434,22 +444,133 @@ Map<String, dynamic>? _parseVisaCommon({
           : MrzFormat.MRV_B.toString().split('.').last
     };
 
+    final rawAllLines = ocr.lines.map((e) => e.text).toList();
+    final rawMrzLines = rawAllLines.where((a)=>a.length>35 && a.contains("<<")).toList();
+    mrzLogger?.call(OcrMrzLog(rawText: ocr.text, rawMrzLines: rawMrzLines, fixedMrzLines: [line1,line2],validation:validation,extractedData: resultMap));
+
+    if (firstName.isEmpty || lastName.isEmpty) return null;
+
+    log(validation.toString());
+    // Build result similar to your passport result
+    // return {
+    //   'format': len == 44 ? 'MRV-A' : 'MRV-B',
+    //   'line1': line1,
+    //   'line2': line2,
+    //   'documentType': documentType, // 'V'
+    //   'visaType': visaType, // issuer-defined
+    //   'issuingState': issuingState,
+    //   'lastName': lastName,
+    //   'firstName': firstName,
+    //   'documentNumber': docNumber,
+    //   'nationality': nationality,
+    //   'birthDate': _parseMrzVisaDate(birth)?.toIso8601String(),
+    //   'expiryDate': _parseMrzVisaDate(expiry)?.toIso8601String(),
+    //   'sex': sex,
+    //   'optionalData': optional,
+    //   'checkDigits': {
+    //     'document': validDoc,
+    //     'birth': validBirth,
+    //     'expiry': validExpiry,
+    //     // no 'final' for visa MRZ
+    //   },
+    // };
+
+
+    return resultMap;
+
   } catch (_) {
     return null;
   }
 }
 
-Map<String, dynamic>? _parseMrvA({required String line1, required String line2, required List<String> otherLines, required OcrMrzSetting validateSettings, required List<NameValidationData>? nameValidations}) {
-  final l1 = _enforceLen(line1, 44);
-  final l2 = _enforceLen(line2, 44);
-  return _parseVisaCommon(line1: l1, line2: l2, len: 44, otherLines: otherLines, validateSettings: validateSettings, nameValidations: nameValidations);
+OcrMrzValidation validateMrzLineVisa({
+  required String line1,
+  required String line2,
+  required OcrMrzSetting setting,
+  required List<String> otherLines,
+  required String firstName,
+  required String lastName,
+  required String country,
+  required String nationality,
+  required String issuing,
+  required String personalNumber,
+  required List<NameValidationData>? nameValidations,
+}) {
+  OcrMrzValidation validation = OcrMrzValidation();
+  try {
+    final docNumber = line2.substring(0, 9);
+    final docCheck = line2.substring(9, 10);
+    final nationality =fixAlphaOnlyField(line2.substring(10, 13));
+    final birth = line2.substring(13, 19);
+    final birthCheck = line2.substring(19, 20);
+    final sex = line2.substring(20, 21);
+    final expiry = line2.substring(21, 27);
+    final expiryCheck = line2.substring(27, 28);
+    final optional = line2.substring(28, line2.length); // no final composite check for visas
+
+    // Validate check digits (no composite)
+    final validDoc = _computeMrzCheckDigit(docNumber) == docCheck;
+    final validBirth = RegExp(r'^\d{6}$').hasMatch(birth) && _computeMrzCheckDigit(birth) == birthCheck;
+    final validExpiry = RegExp(r'^\d{6}$').hasMatch(expiry) && _computeMrzCheckDigit(expiry) == expiryCheck;
+
+    // Name/country validations (reuse your switches)
+    var namesOk =
+    validation.nameValid
+        ? (validateNames(firstName, lastName, otherLines) || (nameValidations?.any((a) => a.firstName.toLowerCase() == firstName.toLowerCase() && a.lastName.toLowerCase() == lastName.toLowerCase()) ?? false))
+        : true;
+
+    final issuingOk = validation.countryValid ? isValidMrzCountry(issuing) : true;
+    final nationalityOk = validation.nationalityValid ? isValidMrzCountry(nationality) : true;
+    final birthOk = !validation.birthDateValid || validBirth;
+    final expiryOk = !validation.expiryDateValid || validExpiry;
+    final docOk = !validation.docNumberValid || validDoc;
+
+
+    validation.docNumberValid = docOk;
+    validation.birthDateValid = birthOk;
+    validation.expiryDateValid = expiryOk;
+
+    // String personalNumber = personalNumber;
+    String personalCheck = line2[42];
+    final isPersonalValid = personalNumber.replaceAll('<', '').isEmpty
+        ? (personalCheck == '0' || personalCheck == '<')
+        : (_computeMrzCheckDigit(personalNumber) == personalCheck);
+    validation.personalNumberValid = isPersonalValid;
+
+
+    // bool isFinalCheckValid = _computeMrzCheckDigit(docNumber + docCheck + birth + birthCheck + expiry + expiryCheck + personalNumber + personalCheck) == finalCheck;
+    validation.finalCheckValid = true;
+
+    validation.nameValid = namesOk;
+    if(!namesOk && nameValidations!=null){
+      if(nameValidations.any((a)=>a.firstName.toLowerCase() == firstName.toLowerCase() && a.lastName.toLowerCase()==lastName.toLowerCase())){
+        namesOk = true;
+        validation.nameValid = true;
+      }
+    }
+
+
+    validation.countryValid = issuingOk;
+
+    validation.nationalityValid = nationalityOk;
+
+    return validation;
+  } catch (e) {
+    return validation;
+  }
 }
 
-Map<String, dynamic>? _parseMrvB({required String line1, required String line2, required List<String> otherLines, required OcrMrzSetting validateSettings, required List<NameValidationData>? nameValidations}) {
-  final l1 = _enforceLen(line1, 36);
-  final l2 = _enforceLen(line2, 36);
-  return _parseVisaCommon(line1: l1, line2: l2, len: 36, otherLines: otherLines, validateSettings: validateSettings, nameValidations: nameValidations);
-}
+// Map<String, dynamic>? _parseMrvA({required String line1, required String line2, required List<String> otherLines, required OcrMrzSetting validateSettings, required List<NameValidationData>? nameValidations}) {
+//   final l1 = _enforceLen(line1, 44);
+//   final l2 = _enforceLen(line2, 44);
+//   return _parseVisaCommon(line1: l1, line2: l2, len: 44, otherLines: otherLines, validateSettings: validateSettings, nameValidations: nameValidations);
+// }
+//
+// Map<String, dynamic>? _parseMrvB({required String line1, required String line2, required List<String> otherLines, required OcrMrzSetting validateSettings, required List<NameValidationData>? nameValidations}) {
+//   final l1 = _enforceLen(line1, 36);
+//   final l2 = _enforceLen(line2, 36);
+//   return _parseVisaCommon(line1: l1, line2: l2, len: 36, otherLines: otherLines, validateSettings: validateSettings, nameValidations: nameValidations);
+// }
 
 /// Slightly different cleanup for names (keep your approach, tuned for visas)
 String _cleanMrzVisaName(String input) =>
@@ -479,25 +600,25 @@ DateTime? _parseMrzVisaDate(String yymmdd) {
 }
 
 /// Convenience hook mirroring your passport flow
-void handleOcrVisa(
-  OcrData ocr,
-  void Function(OcrMrzResult res) onFoundVisaMrz, // or create OcrVisaResult if you prefer
-  OcrMrzSetting? setting,
-  List<NameValidationData>? nameValidations,
-) {
-  try {
-    final m = tryParseVisaMrzFromOcrLines(ocr, setting, nameValidations);
-    if (m != null) {
-      log("✅ Valid Visa MRZ (${m['format']}):");
-      final r = OcrMrzResult.fromJson(m); // works if your model is generic enough; else make a Visa variant
-      log("${r.line1}\n${r.line2}");
-      onFoundVisaMrz(r);
-    }
-  } catch (e, st) {
-    log(e.toString());
-    log(st.toString());
-  }
-}
+// void handleOcrVisa(
+//   OcrData ocr,
+//   void Function(OcrMrzResult res) onFoundVisaMrz, // or create OcrVisaResult if you prefer
+//   OcrMrzSetting? setting,
+//   List<NameValidationData>? nameValidations,
+// ) {
+//   try {
+//     final m = tryParseVisaMrzFromOcrLines(ocr, setting, nameValidations);
+//     if (m != null) {
+//       log("✅ Valid Visa MRZ (${m['format']}):");
+//       final r = OcrMrzResult.fromJson(m); // works if your model is generic enough; else make a Visa variant
+//       log("${r.line1}\n${r.line2}");
+//       onFoundVisaMrz(r);
+//     }
+//   } catch (e, st) {
+//     log(e.toString());
+//     log(st.toString());
+//   }
+// }
 
 String _computeMrzCheckDigit(String input) {
   final weights = [7, 3, 1];

@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:camera_kit_plus/camera_kit_ocr_plus_view.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart';
 import 'package:ocr_mrz/name_validation_data_class.dart';
+import 'package:ocr_mrz/orc_mrz_log_class.dart';
 
 import 'ocr_mrz_settings_class.dart';
 import 'travel_doc_util.dart';
@@ -41,11 +42,14 @@ String _normalizeLine(String line) {
   return normalized.split('').where((c) => RegExp(r'[A-Z0-9<]').hasMatch(c)).join().padRight(44, '<').substring(0, 44);
 }
 
-Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? setting, List<NameValidationData>? nameValidations) {
+Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? setting, List<NameValidationData>? nameValidations, void Function(OcrMrzLog log)? mrzLogger) {
   List<String> ocrLines = ocrData.lines.map((a) => a.text).toList();
   final mrzLines = ocrLines.where((a)=>a.length>35 && a.contains("<<")).map(_normalizeLine).where((line) => line.length == 44 && line.contains(RegExp(r'<{2,}'))).toList();
-
-  if (mrzLines.length < 2) return null;
+  final rawMrzLines = [...ocrLines.where((a)=>a.length>35 && a.contains("<<"))];
+  if (mrzLines.length < 2) {
+    mrzLogger?.call(OcrMrzLog(rawText: ocrData.text, rawMrzLines: rawMrzLines, fixedMrzLines: mrzLines,validation:OcrMrzValidation(),extractedData: {}));
+    return null;
+  }
 
   var line1 = mrzLines[mrzLines.length - 2];
   var line2 = mrzLines[mrzLines.length - 1];
@@ -87,12 +91,35 @@ Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? se
     final composite = line2.substring(0, 10) + birthDate + birthCheck + expiryDate + expiryCheck + personalNumber + personalCheck;
     final validFinal = _computeMrzCheckDigit(composite) == finalCheck;
 
-    if (firstName.trim().isEmpty || lastName.trim().isEmpty) {
-      return null;
-    }
 
     final validateSettings = setting ?? OcrMrzSetting();
     final validation = validateMrzLine(line1: line1, line2: line2, otherLines: otherLines, firstName: firstName, lastName: lastName, setting: validateSettings, country: countryCode, nationality: nationality, personalNumber: personalNumber,nameValidations:nameValidations);
+
+    final resultMap = {
+      'line1': line1,
+      'line2': line2,
+      'documentType': documentType,
+      'countryCode': countryCode,
+      'lastName': lastName,
+      'firstName': firstName,
+      'passportNumber': passportNumber,
+      'nationality': nationality,
+      'birthDate': _parseMrzDate(birthDate)?.toIso8601String(),
+      'expiryDate': _parseMrzDate(expiryDate)?.toIso8601String(),
+      'sex': sex,
+      'personalNumber': personalNumber,
+      'valid': validation.toJson(),
+      'checkDigits': {'passport': validPassport, 'birth': validBirth, 'expiry': validExpiry, 'optional': validOptional, 'final': validFinal},
+      "ocrData": ocrData.toJson(),
+      'format': MrzFormat.TD3.toString().split('.').last
+    };
+
+
+    mrzLogger?.call(OcrMrzLog(rawText: ocrData.text, rawMrzLines: rawMrzLines, fixedMrzLines: [line1,line2],validation:validation,extractedData: resultMap));
+
+    if (firstName.trim().isEmpty || lastName.trim().isEmpty) {
+      return null;
+    }
 
 
     if(validation.linesLengthValid){
@@ -139,24 +166,7 @@ Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? se
       return null;
     }
 
-    final resultMap = {
-      'line1': line1,
-      'line2': line2,
-      'documentType': documentType,
-      'countryCode': countryCode,
-      'lastName': lastName,
-      'firstName': firstName,
-      'passportNumber': passportNumber,
-      'nationality': nationality,
-      'birthDate': _parseMrzDate(birthDate)?.toIso8601String(),
-      'expiryDate': _parseMrzDate(expiryDate)?.toIso8601String(),
-      'sex': sex,
-      'personalNumber': personalNumber,
-      'valid': validation.toJson(),
-      'checkDigits': {'passport': validPassport, 'birth': validBirth, 'expiry': validExpiry, 'optional': validOptional, 'final': validFinal},
-      "ocrData": ocrData.toJson(),
-      'format': MrzFormat.TD3.toString().split('.').last
-    };
+
 
     return resultMap;
   } catch (_) {
@@ -412,23 +422,23 @@ List<String> extractWords(String text) {
   return wordRegExp.allMatches(text).map((match) => match.group(0)!).toList();
 }
 
-void handleOcr(OcrData ocr, void Function(OcrMrzResult res) onFoundMrz, OcrMrzSetting? setting, List<NameValidationData>? nameValidations) {
-  // final ocrLines = ocr.lines.map((a)=>a.text).toList();
-  try {
-    final mrz = tryParseMrzFromOcrLines(ocr, setting,nameValidations);
-    if (mrz != null) {
-      log("✅ Valid MRZ:");
-      final ocrMR = OcrMrzResult.fromJson(mrz);
-      log("${ocrMR.line1}\n${ocrMR.line2}");
-      onFoundMrz(ocrMR);
-    }
-  } catch (e) {
-    log(e.toString());
-    if (e is Error) {
-      log(e.stackTrace.toString());
-    }
-  }
-}
+// void handleOcr(OcrData ocr, void Function(OcrMrzResult res) onFoundMrz, OcrMrzSetting? setting, List<NameValidationData>? nameValidations) {
+//   // final ocrLines = ocr.lines.map((a)=>a.text).toList();
+//   try {
+//     final mrz = tryParseMrzFromOcrLines(ocr, setting,nameValidations);
+//     if (mrz != null) {
+//       log("✅ Valid MRZ:");
+//       final ocrMR = OcrMrzResult.fromJson(mrz);
+//       log("${ocrMR.line1}\n${ocrMR.line2}");
+//       onFoundMrz(ocrMR);
+//     }
+//   } catch (e) {
+//     log(e.toString());
+//     if (e is Error) {
+//       log(e.stackTrace.toString());
+//     }
+//   }
+// }
 
 const Set<String> mrzCountryCodes = {
   "AFG",

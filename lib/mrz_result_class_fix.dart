@@ -1,8 +1,11 @@
 import 'package:camera_kit_plus/camera_kit_ocr_plus_view.dart';
 
 enum MrzFormat { TD3, MRV_A, MRV_B, TD1, TD2, unknown }
+enum DocumentType {passport,visa,travelDocument1,travelDocument2}
 
 class OcrMrzResult {
+
+  DocumentType get type => documentType == "P"?DocumentType.passport:documentType == "V"?DocumentType.visa:mrzFormat ==MrzFormat.TD1?DocumentType.travelDocument1:DocumentType.travelDocument2;
   // Raw lines
   String line1;
   String line2;

@@ -2,34 +2,21 @@ import 'dart:developer';
 
 import 'package:camera_kit_plus/camera_kit_ocr_plus_view.dart';
 import 'package:ocr_mrz/name_validation_data_class.dart';
+import 'package:ocr_mrz/passport_util.dart';
 
 import 'mrz_result_class_fix.dart';
 import 'ocr_mrz_settings_class.dart';
+import 'orc_mrz_log_class.dart';
 
 // Reuse these from your codebase if already defined; otherwise keep here.
 String _normalizeIdLine(String line) {
-  final map = {
-    '«': '<', '|': '<', '\\': '<', '/': '<', '“': '<', '”': '<',
-    '’': '<', '‘': '<', ' ': '<',
-  };
-  return line
-      .toUpperCase()
-      .split('')
-      .map((c) => map[c] ?? c)
-      .where((c) => RegExp(r'[A-Z0-9<]').hasMatch(c))
-      .join();
+  final map = {'«': '<', '|': '<', '\\': '<', '/': '<', '“': '<', '”': '<', '’': '<', '‘': '<', ' ': '<'};
+  return line.toUpperCase().split('').map((c) => map[c] ?? c).where((c) => RegExp(r'[A-Z0-9<]').hasMatch(c)).join();
 }
 
 String _enforceLen(String s, int len) => s.length >= len ? s.substring(0, len) : s.padRight(len, '<');
 
-String _cleanName(String input) => input
-    .replaceAll('0', 'O')
-    .replaceAll('1', 'I')
-    .replaceAll('5', 'S')
-    .replaceAll(RegExp(r'[2-9]'), '')
-    .replaceAll('<', ' ')
-    .replaceAll(RegExp(r'\s+'), ' ')
-    .trim();
+String _cleanName(String input) => input.replaceAll('0', 'O').replaceAll('1', 'I').replaceAll('5', 'S').replaceAll(RegExp(r'[2-9]'), '').replaceAll('<', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 
 DateTime? _parseDateYYMMDD(String yymmdd) {
   if (!RegExp(r'^\d{6}$').hasMatch(yymmdd)) return null;
@@ -70,22 +57,12 @@ bool isValidMrzCountry(String code) => code.length == 3 && RegExp(r'^[A-Z<]{3}$'
 // -------------------- TD1 (3 × 30) --------------------
 
 /// Public: find and parse a TD1 triplet; returns JSON for OcrMrzResult.fromJson or null.
-Map<String, dynamic>? tryParseTD1FromOcrLines(
-    OcrData ocrData,
-    OcrMrzSetting? setting,
-    List<NameValidationData>? nameValidations,
-    ) {
+Map<String, dynamic>? tryParseTD1FromOcrLines(OcrData ocrData, OcrMrzSetting? setting, List<NameValidationData>? nameValidations, void Function(OcrMrzLog log)? mrzLogger) {
   final raw = ocrData.lines.map((e) => e.text).toList();
   final normalized = raw.map(_normalizeIdLine).toList();
   final s = setting ?? OcrMrzSetting();
 
-  return _findTd1TripletAndParse(
-    normalized: normalized,
-    rawAllLines: raw,
-    validateSettings: s,
-    nameValidations: nameValidations,
-    ocr: ocrData,
-  );
+  return _findTd1TripletAndParse(normalized: normalized, rawAllLines: raw, validateSettings: s, nameValidations: nameValidations, ocr: ocrData);
 }
 
 Map<String, dynamic>? _findTd1TripletAndParse({
@@ -95,7 +72,7 @@ Map<String, dynamic>? _findTd1TripletAndParse({
   required List<NameValidationData>? nameValidations,
   required OcrData ocr,
 }) {
-  // Collect lines that can be 30 chars (TD1)
+  // collect lines that can be 30 chars (TD1)
   final idxToLine = <int, String>{};
   for (int i = 0; i < normalized.length; i++) {
     final l = _enforceLen(normalized[i], 30);
@@ -103,66 +80,45 @@ Map<String, dynamic>? _findTd1TripletAndParse({
   }
   if (idxToLine.length < 3) return null;
 
-  // Candidate L1: first char is alpha (document code), contains issuing state-ish at [2..5)
-  // Candidate L3: must contain '<<' (names)
-  // We search for i, i+1, i+2 primarily; also allow small window to handle OCR shuffles.
   const window = 3;
   final indices = idxToLine.keys.toList()..sort();
 
   for (final i in indices) {
-    final l1 = idxToLine[i]!;
-    if (!RegExp(r'^[A-Z]').hasMatch(l1)) continue; // doc code must be alpha
-    // enforce name line existence nearby
+    final l1cand = idxToLine[i]!;
+    if (!RegExp(r'^[A-Z]<').hasMatch(l1cand)) continue;
+
     for (int j = i + 1; j <= i + window; j++) {
       for (int k = j + 1; k <= i + window + 1; k++) {
         if (!idxToLine.containsKey(j) || !idxToLine.containsKey(k)) continue;
+
         final l2cand = idxToLine[j]!;
         final l3cand = idxToLine[k]!;
         if (!l3cand.contains('<<')) continue;
 
-        // Repair/sanitize specific fields
-        final line1 = _repairTd1Line1(l1);
+        final line1 = _repairTd1Line1(l1cand);
         final line2 = _repairTd1Line2(l2cand);
         final line3 = _repairTd1Line3(l3cand);
 
+        // ✅ strong guards
         if (!_looksLikeTd1Line2(line2)) continue;
+        if (!_looksLikeTd1Line1(line1)) continue;
 
-        // Build other lines (exclude these three indices)
         final other = <String>[];
         for (int t = 0; t < rawAllLines.length; t++) {
           if (t != i && t != j && t != k) other.add(rawAllLines[t]);
         }
 
-        final parsed = _parseTd1(
-          l1: line1,
-          l2: line2,
-          l3: line3,
-          otherLines: other,
-          validateSettings: validateSettings,
-          nameValidations: nameValidations,
-        );
+        final parsed = _parseTd1(l1: line1, l2: line2, l3: line3, otherLines: other, validateSettings: validateSettings, nameValidations: nameValidations);
         if (parsed != null) {
           parsed['ocrData'] = ocr.toJson();
+          parsed['format'] = MrzFormat.TD1.toString().split('.').last;
           return parsed;
         }
       }
     }
   }
-  return null;
-}
 
-String _repairTd1Line1(String l1) {
-  // Fix common OCR in doc number and country area
-  final buf = l1.split('');
-  // issuing state at [2..5)
-  for (int i = 2; i < 5 && i < buf.length; i++) {
-    buf[i] = _fixAlpha(buf[i]);
-  }
-  // doc number at [5..14)
-  for (int i = 5; i < 14 && i < buf.length; i++) {
-    buf[i] = _fixAlnumPrefDigits(buf[i]);
-  }
-  return buf.join();
+  return null;
 }
 
 String _repairTd1Line2(String l2) {
@@ -182,6 +138,66 @@ String _repairTd1Line3(String l3) {
   return l3.replaceAll(RegExp(r'[^\w<]'), '<');
 }
 
+bool _looksLikeTd1Line1(String l1) {
+  if (l1.length != 30) return false;
+
+  // Doc code: first char A–Z, second char A–Z or '<'
+  if (!RegExp(r'^[A-Z][A-Z<]').hasMatch(l1)) return false;
+
+  // Issuing state must be letters after alpha-fix
+  final issuing = fixAlphaOnlyField(l1.substring(2, 5));
+  if (!RegExp(r'^[A-Z]{3}$').hasMatch(issuing)) return false;
+
+  // Doc number must be plausible and pass checksum
+  final docNo = l1.substring(5, 14);
+  if (docNo.replaceAll('<', '').length < 5) return false;
+
+  return _computeMrzCheckDigit(docNo) == l1[14];
+}
+
+String _repairTd1Line1(String l1) {
+  l1 = _enforceLen(l1, 30);
+  final buf = l1.split('');
+
+  // First char must be A–Z; if not, default to 'I'
+  if (buf.isEmpty || !RegExp(r'^[A-Z]$').hasMatch(buf[0])) {
+    if (buf.isEmpty) return 'I<${'<'.padRight(28, '<')}';
+    buf[0] = 'I';
+  }
+  // Common OCR: 'T' read instead of 'I'
+  if (buf[0] == 'T') buf[0] = 'I';
+
+  // Second char may be A–Z or '<'. Only fix if it's clearly not allowed.
+  if (buf.length >= 2) {
+    final c = buf[1];
+    final ok = RegExp(r'^[A-Z<]$').hasMatch(c);
+    if (!ok) {
+      // map common confusions; fallback '<'
+      const m = {'1': 'I', '0': 'O', '|': 'I', '/': '<', '\\': '<', '«': '<', '»': '<'};
+      buf[1] = m[c] ?? '<';
+    }
+  }
+
+  // Issuing state [2..5): letters only (fix 0→O,1→I,...)
+  if (buf.length >= 5) {
+    final issuing = fixAlphaOnlyField(buf.sublist(2, 5).join());
+    for (int i = 0; i < 3; i++) buf[2 + i] = issuing[i];
+  }
+
+  // Document number [5..14): prefer digits in ambiguous glyphs
+  for (int i = 5; i < 14 && i < buf.length; i++) {
+    buf[i] = _fixAlnumPrefDigits(buf[i]);
+  }
+
+  // Recompute document checksum at [14]
+  if (buf.length > 14) {
+    final docNo = buf.sublist(5, 14).join();
+    buf[14] = _computeMrzCheckDigit(docNo);
+  }
+
+  return _enforceLen(buf.join(), 30);
+}
+
 bool _looksLikeTd1Line2(String l2) {
   if (l2.length != 30) return false;
   final birth = l2.substring(0, 6);
@@ -199,32 +215,15 @@ bool _looksLikeTd1Line2(String l2) {
 
 /// Fix OCR mistakes for alpha-only MRZ fields (like country or nationality).
 String fixAlphaOnlyField(String value) {
-  final map = {
-    '0': 'O',
-    '1': 'I',
-    '5': 'S',
-    '8': 'B',
-    '6': 'G',
-  };
-  return value
-      .toUpperCase()
-      .split('')
-      .map((c) => map[c] ?? c)
-      .join();
+  final map = {'0': 'O', '1': 'I', '5': 'S', '8': 'B', '6': 'G'};
+  return value.toUpperCase().split('').map((c) => map[c] ?? c).join();
 }
 
-Map<String, dynamic>? _parseTd1({
-  required String l1,
-  required String l2,
-  required String l3,
-  required List<String> otherLines,
-  required OcrMrzSetting validateSettings,
-  required List<NameValidationData>? nameValidations,
-}) {
+Map<String, dynamic>? _parseTd1({required String l1, required String l2, required String l3, required List<String> otherLines, required OcrMrzSetting validateSettings, required List<NameValidationData>? nameValidations}) {
   try {
     // Line1 (30):
     // [0..2) docType(2), [2..5) issuingState(3), [5..14) docNo(9), [14] docChk, [15..30) opt1
-    final documentType = l1.substring(0, 1);        // first char
+    final documentType = l1.substring(0, 1); // first char
     final issuingState = fixAlphaOnlyField(l1.substring(2, 5));
     final docNo = l1.substring(5, 14);
     final docChk = l1[14];
@@ -242,6 +241,8 @@ Map<String, dynamic>? _parseTd1({
     final opt2 = l2.substring(18, 29);
     final finalComposite = l2[29];
 
+    log("Nationality ${nationality}");
+
     // Line3 (30): names "LAST<<FIRST<MIDDLE..."
     final nameField = l3;
     final nameParts = nameField.split('<<');
@@ -256,100 +257,220 @@ Map<String, dynamic>? _parseTd1({
     final vBirth = RegExp(r'^\d{6}$').hasMatch(birth) && _computeMrzCheckDigit(birth) == birthChk;
     final vExpiry = RegExp(r'^\d{6}$').hasMatch(expiry) && _computeMrzCheckDigit(expiry) == expiryChk;
 
-    final namesOk = validateSettings.validateNames
-        ? ( _validateNames(firstName, lastName, otherLines) ||
-        (nameValidations?.any((a) =>
-        a.firstName.toLowerCase() == firstName.toLowerCase() &&
-            a.lastName.toLowerCase() == lastName.toLowerCase()) ?? false))
-        : true;
+    final namesOk =
+        validateSettings.validateNames
+            ? (_validateNames(firstName, lastName, otherLines) || (nameValidations?.any((a) => a.firstName.toLowerCase() == firstName.toLowerCase() && a.lastName.toLowerCase() == lastName.toLowerCase()) ?? false))
+            : true;
 
     final issuingOk = !validateSettings.validateCountry || isValidMrzCountry(issuingState);
     final nationalityOk = !validateSettings.validateNationality || isValidMrzCountry(nationality);
 
     // Composite (TD1 final check at end of L2)
-    final compositeInput = docNo + docChk + birth + birthChk + expiry + expiryChk + opt2; // ICAO Doc 9303 specifies opt2 in composite
-    final vFinal = _computeMrzCheckDigit(compositeInput) == finalComposite;
 
     // Build result
+
+    log("Nationality Nationality $nationality");
+
+    // final validateSettings = setting ?? OcrMrzSetting();
+    final validation = validateMrzLineTd1(
+      l1: l1,
+      l2: l2,
+      l3: l3,
+      otherLines: otherLines,
+      firstName: firstName,
+      lastName: lastName,
+      setting: validateSettings,
+      country: '',
+      nationality: nationality,
+      personalNumber: '',
+      nameValidations: nameValidations,
+    );
+
+    // if(validation.linesLengthValid){
+    //   log("\n$oldLine1\n$oldLine2\n${"-"*50}\n$line1\n$line2\n$validation\n${passportNumber} - ${birthDate} - ${expiryDate} - ${personalNumber}  - ${countryCode} - ${nationality} - ${firstName} ${lastName}");
+    //   // log(validation.toString());
+    // }
+
+    // if (validateSettings.validateNames && !validation.nameValid) {
+    //   // log("$line1\n$line2");
+    //   return null;
+    // }
+    // if (validateSettings.validateBirthDateValid && !validation.birthDateValid) {
+    //   // log("$line1\n$line2");
+    //   return null;
+    // }
+    // if (validateSettings.validateDocNumberValid && !validation.docNumberValid) {
+    //   // log("$line1\n$line2");
+    //   return null;
+    // }
+    // if (validateSettings.validateExpiryDateValid && !validation.expiryDateValid) {
+    //   // log("$line1\n$line2");
+    //   return null;
+    // }
+    // if (validateSettings.validateFinalCheckValid && !validation.finalCheckValid) {
+    //   // log("$line1\n$line2");
+    //   return null;
+    // }
+    // if (validateSettings.validateLinesLength && !validation.linesLengthValid) {
+    //   // log("$line1\n$line2");
+    //   return null;
+    // }
+
+    log(validation.toString());
+    if (validateSettings.validateNationality && !validation.nationalityValid) {
+      // log("$line1\n$line2");
+      return null;
+    }
     return {
       'line1': l1,
       'line2': l2,
-      "line3":l3,
-      'documentType': documentType,   // usually 'I' for ID
+      "line3": l3,
+      'documentType': documentType, // usually 'I' for ID
       'mrzFormat': 'TD1',
       'issuingState': issuingState,
       'countryCode': issuingState,
       'lastName': lastName,
       'firstName': firstName,
       'documentNumber': docNo,
-      'passportNumber': docNo,        // legacy mirror
+      'passportNumber': docNo, // legacy mirror
       'nationality': nationality,
       'birthDate': _parseDateYYMMDD(birth)?.toIso8601String(),
       'expiryDate': _parseDateYYMMDD(expiry)?.toIso8601String(),
       'sex': sex,
-      'optionalData': opt2.isNotEmpty ? opt2 : opt1,  // prefer L2 optional
+      'optionalData': opt2.isNotEmpty ? opt2 : opt1, // prefer L2 optional
       'personalNumber': opt2.isNotEmpty ? opt2 : opt1,
       'valid': {
         'docNumberValid': vDoc,
         'birthDateValid': vBirth,
         'expiryDateValid': vExpiry,
-        'personalNumberValid': true,     // no direct check digit for optional
-        'finalCheckValid': vFinal,
+        'personalNumberValid': true, // no direct check digit for optional
+        'finalCheckValid': validation.finalCheckValid,
         'hasFinalCheck': true,
         'nameValid': namesOk,
         'linesLengthValid': true,
         'countryValid': issuingOk,
         'nationalityValid': nationalityOk,
       },
-      'checkDigits': {
-        'document': vDoc,
-        'passport': vDoc,
-        'birth': vBirth,
-        'expiry': vExpiry,
-        'optional': true,
-        'final': vFinal,
-        'finalComposite': vFinal,
-      },
-      'format': MrzFormat.TD1.toString().split('.').last
+      'checkDigits': {'document': vDoc, 'passport': vDoc, 'birth': vBirth, 'expiry': vExpiry, 'optional': true, 'final': validation.finalCheckValid, 'finalComposite': validation.finalCheckValid},
+      'format': MrzFormat.TD1.toString().split('.').last,
     };
   } catch (_) {
     return null;
   }
 }
 
+OcrMrzValidation validateMrzLineTd1({
+  required String l1,
+  required String l2,
+  required String l3,
+  required List<String> otherLines,
+  required String firstName,
+  required String lastName,
+  required OcrMrzSetting setting,
+  required String country,
+  required String nationality,
+  required String personalNumber,
+  List<NameValidationData>? nameValidations,
+}) {
+  OcrMrzValidation validation = OcrMrzValidation();
+  try {
+    final documentType = l1.substring(0, 1); // first char
+    final issuingState = fixAlphaOnlyField(l1.substring(2, 5));
+    final docNo = l1.substring(5, 14);
+    final docChk = l1[14];
+    final opt1 = l1.substring(15, 30);
+
+    // Line2 (30):
+    // [0..6) birth, [6] birthChk, [7] sex, [8..14) expiry, [14] expiryChk,
+    // [15..18) nationality, [18..29) opt2, [29] finalComposite
+    final birth = l2.substring(0, 6);
+    final birthChk = l2[6];
+    final sex = l2[7];
+    final expiry = l2.substring(8, 14);
+    final expiryChk = l2[14];
+    final nationality = fixAlphaOnlyField(l2.substring(15, 18));
+    final opt2 = l2.substring(18, 29);
+    final finalComposite = l2[29];
+
+    log("Nationality ${nationality}");
+
+    // Line3 (30): names "LAST<<FIRST<MIDDLE..."
+    final nameField = l3;
+    final nameParts = nameField.split('<<');
+    String lastName = nameParts.isNotEmpty ? nameParts[0].replaceAll('<', ' ').trim() : '';
+    String firstName = nameParts.length > 1 ? nameParts[1].replaceAll('<', ' ').trim() : '';
+    lastName = _cleanName(lastName);
+    firstName = _cleanName(firstName);
+
+    // Validations
+    final vDoc = _computeMrzCheckDigit(docNo) == docChk;
+    final vBirth = RegExp(r'^\d{6}$').hasMatch(birth) && _computeMrzCheckDigit(birth) == birthChk;
+    final vExpiry = RegExp(r'^\d{6}$').hasMatch(expiry) && _computeMrzCheckDigit(expiry) == expiryChk;
+
+    validation.linesLengthValid = (l2.length == 44 && l1.length == 44);
+
+    bool isDocNumberValid = _computeMrzCheckDigit(docNo) == docChk;
+    validation.docNumberValid = isDocNumberValid;
+
+    bool isBirthDateValid = (RegExp(r'^\d{6}$').hasMatch(birth) && _computeMrzCheckDigit(birth) == birthChk);
+    validation.birthDateValid = isBirthDateValid;
+
+    bool isExpiryDateValid = (RegExp(r'^\d{6}$').hasMatch(expiry) && _computeMrzCheckDigit(expiry) == expiryChk);
+    validation.expiryDateValid = isExpiryDateValid;
+
+    validation.personalNumberValid = true;
+
+    final compositeInput = docNo + docChk + birth + birthChk + expiry + expiryChk + opt2; // ICAO Doc 9303 specifies opt2 in composite
+    final vFinal = _computeMrzCheckDigit(compositeInput) == finalComposite;
+    validation.finalCheckValid = vFinal;
+
+    bool validNames = validateNames(firstName, lastName, otherLines);
+    bool isNamesValid = validNames;
+    validation.nameValid = isNamesValid;
+    if (!isNamesValid && nameValidations != null) {
+      if (nameValidations.any((a) => a.firstName.toLowerCase() == firstName.toLowerCase() && a.lastName.toLowerCase() == lastName.toLowerCase())) {
+        isNamesValid = true;
+        validation.nameValid = true;
+      }
+    }
+
+    bool validCountry = isValidMrzCountry(country);
+    bool isValidCountry = validCountry;
+    validation.countryValid = isValidCountry;
+
+    bool validNationality = isValidMrzCountry(nationality);
+    bool isValidNationality = validNationality;
+    validation.nationalityValid = isValidNationality;
+
+    return validation;
+  } catch (e) {
+    return validation;
+  }
+}
+
 // -------------------- TD2 (2 × 36) --------------------
 
 /// Public: find and parse a TD2 pair; returns JSON for OcrMrzResult.fromJson or null.
-Map<String, dynamic>? tryParseTD2FromOcrLines(
-    OcrData ocrData,
-    OcrMrzSetting? setting,
-    List<NameValidationData>? nameValidations,
-    ) {
+Map<String, dynamic>? tryParseTD2FromOcrLines(OcrData ocrData, OcrMrzSetting? setting, List<NameValidationData>? nameValidations, void Function(OcrMrzLog log)? mrzLogger) {
   final raw = ocrData.lines.map((e) => e.text).toList();
-  final normalized = raw.map(_normalizeIdLine).toList();
+  // final normalized = raw.map(_normalizeIdLine).toList();
+  final normalized = raw.where((a) => a.contains("<<")).map(_normalizeIdLine).where((line) => line.contains(RegExp(r'<{2,}'))).toList();
   final s = setting ?? OcrMrzSetting();
 
-  return _findTd2PairAndParse(
-    normalized: normalized,
-    rawAllLines: raw,
-    validateSettings: s,
-    nameValidations: nameValidations,
-    ocr: ocrData,
-  );
+  return _findTd2PairAndParse(normalized: normalized, rawAllLines: raw, validateSettings: s, nameValidations: nameValidations, ocr: ocrData);
 }
 
-Map<String, dynamic>? _findTd2PairAndParse({
-  required List<String> normalized,
-  required List<String> rawAllLines,
-  required OcrMrzSetting validateSettings,
-  required List<NameValidationData>? nameValidations,
-  required OcrData ocr,
-}) {
+Map<String, dynamic>? _findTd2PairAndParse({required List<String> normalized, required List<String> rawAllLines, required OcrMrzSetting validateSettings, required List<NameValidationData>? nameValidations, required OcrData ocr}) {
+  if (normalized.length < 3) {
+    return null;
+  }
+  // log(normalized.join("\n"));
   final idxToLine = <int, String>{};
   for (int i = 0; i < normalized.length; i++) {
     final l = _enforceLen(normalized[i], 36);
     if (l.length == 36) idxToLine[i] = l;
   }
+
   if (idxToLine.length < 2) return null;
 
   const window = 3;
@@ -357,41 +478,51 @@ Map<String, dynamic>? _findTd2PairAndParse({
 
   for (final i in indices) {
     final l1cand = idxToLine[i]!;
-    // Line1: alpha doc code at start, must contain '<<' for names
+    // log(l1cand);
     if (!RegExp(r'^[A-Z]').hasMatch(l1cand)) continue;
-    if (!l1cand.contains('<<')) continue;
 
-    final l1 = _repairTd2Line1(l1cand);
-
-    // search for line2 nearby
     for (int j = i + 1; j <= i + window; j++) {
-      if (!idxToLine.containsKey(j)) continue;
-      final l2cand = idxToLine[j]!;
-      // Line2 starts with document number (not 'V', usually not '<')
-      if (l2cand.startsWith('V')) continue;
+      for (int k = j + 1; k <= i + window + 1; k++) {
+        if (!idxToLine.containsKey(j) || !idxToLine.containsKey(k)) continue;
 
-      final l2 = _repairTd2Line2(l2cand);
-      if (!_looksLikeTd2Line2(l2)) continue;
+        final l2cand = idxToLine[j]!;
+        final l3cand = idxToLine[k]!;
 
-      // Build other lines
-      final other = <String>[];
-      for (int t = 0; t < rawAllLines.length; t++) {
-        if (t != i && t != j) other.add(rawAllLines[t]);
-      }
+        if (!l3cand.contains('<<')) continue;
 
-      final parsed = _parseTd2(
-        l1: l1,
-        l2: l2,
-        otherLines: other,
-        validateSettings: validateSettings,
-        nameValidations: nameValidations,
-      );
-      if (parsed != null) {
-        parsed['ocrData'] = ocr.toJson();
-        return parsed;
+        // log("-"*100);
+        // log(l1cand);
+        // log(l2cand);
+        // log(l3cand);
+        final line1 = _repairTd1Line1(l1cand);
+        final line2 = _repairTd1Line2(l2cand);
+        final line3 = _repairTd1Line3(l3cand);
+
+        // log("$line1    == ${l1cand}");
+        // ✅ strong guards
+        // if (!_looksLikeTd1Line2(line2)) continue;
+        // if (!_looksLikeTd1Line1(line1)) continue;
+
+        log("*" * 100);
+        log(line1);
+        log(line2);
+        log(line3);
+
+        final other = <String>[];
+        for (int t = 0; t < rawAllLines.length; t++) {
+          if (t != i && t != j && t != k) other.add(rawAllLines[t]);
+        }
+
+        final parsed = _parseTd1(l1: line1, l2: line2, l3: line3, otherLines: other, validateSettings: validateSettings, nameValidations: nameValidations);
+        if (parsed != null) {
+          parsed['ocrData'] = ocr.toJson();
+          parsed['format'] = MrzFormat.TD1.toString().split('.').last;
+          return parsed;
+        }
       }
     }
   }
+
   return null;
 }
 
@@ -434,13 +565,7 @@ bool _looksLikeTd2Line2(String l2) {
   return vDoc && vBirth && vExpiry && vNat && vSex;
 }
 
-Map<String, dynamic>? _parseTd2({
-  required String l1,
-  required String l2,
-  required List<String> otherLines,
-  required OcrMrzSetting validateSettings,
-  required List<NameValidationData>? nameValidations,
-}) {
+Map<String, dynamic>? _parseTd2({required String l1, required String l2, required List<String> otherLines, required OcrMrzSetting validateSettings, required List<NameValidationData>? nameValidations}) {
   try {
     // Line1 (36): [0..2) docType(2), [2..5) issuingState(3), [5..) names
     final documentType = l1.substring(0, 1); // first char
@@ -459,6 +584,8 @@ Map<String, dynamic>? _parseTd2({
     final docNo = l2.substring(0, 9);
     final docChk = l2[9];
     final nationality = fixAlphaOnlyField(l2.substring(10, 13));
+
+    log("Nationality ${nationality}");
     final birth = l2.substring(13, 19);
     final birthChk = l2[19];
     final sex = l2[20];
@@ -471,12 +598,10 @@ Map<String, dynamic>? _parseTd2({
     final vBirth = RegExp(r'^\d{6}$').hasMatch(birth) && _computeMrzCheckDigit(birth) == birthChk;
     final vExpiry = RegExp(r'^\d{6}$').hasMatch(expiry) && _computeMrzCheckDigit(expiry) == expiryChk;
 
-    final namesOk = validateSettings.validateNames
-        ? ( _validateNames(firstName, lastName, otherLines) ||
-        (nameValidations?.any((a) =>
-        a.firstName.toLowerCase() == firstName.toLowerCase() &&
-            a.lastName.toLowerCase() == lastName.toLowerCase()) ?? false))
-        : true;
+    final namesOk =
+        validateSettings.validateNames
+            ? (_validateNames(firstName, lastName, otherLines) || (nameValidations?.any((a) => a.firstName.toLowerCase() == firstName.toLowerCase() && a.lastName.toLowerCase() == lastName.toLowerCase()) ?? false))
+            : true;
 
     final issuingOk = !validateSettings.validateCountry || isValidMrzCountry(issuingState);
     final nationalityOk = !validateSettings.validateNationality || isValidMrzCountry(nationality);
@@ -485,10 +610,23 @@ Map<String, dynamic>? _parseTd2({
     final compositeInput = docNo + docChk + birth + birthChk + expiry + expiryChk + optional;
     final vFinal = _computeMrzCheckDigit(compositeInput) == finalComposite;
 
+    // final validation = validateMrzLineTd1(
+    //   l1: l1,
+    //   l2: l2,
+    //   l3: l3,
+    //   otherLines: otherLines,
+    //   firstName: firstName,
+    //   lastName: lastName,
+    //   setting: validateSettings,
+    //   country: '',
+    //   nationality: nationality,
+    //   personalNumber: '',
+    //   nameValidations: nameValidations,
+    // );
     return {
       'line1': l1,
       'line2': l2,
-      'documentType': documentType,  // typically 'I'
+      'documentType': documentType, // typically 'I'
       'mrzFormat': 'TD2',
       'issuingState': issuingState,
       'countryCode': issuingState,
@@ -507,23 +645,15 @@ Map<String, dynamic>? _parseTd2({
         'birthDateValid': vBirth,
         'expiryDateValid': vExpiry,
         'personalNumberValid': true,
-        'finalCheckValid': vFinal,
+        'finalCheckValid': true,
         'hasFinalCheck': true,
         'nameValid': namesOk,
         'linesLengthValid': true,
         'countryValid': issuingOk,
         'nationalityValid': nationalityOk,
       },
-      'checkDigits': {
-        'document': vDoc,
-        'passport': vDoc,
-        'birth': vBirth,
-        'expiry': vExpiry,
-        'optional': true,
-        'final': vFinal,
-        'finalComposite': vFinal,
-      },
-      'format': MrzFormat.TD2.toString().split('.').last
+      'checkDigits': {'document': vDoc, 'passport': vDoc, 'birth': vBirth, 'expiry': vExpiry, 'optional': true, 'final': vFinal, 'finalComposite': vFinal},
+      'format': MrzFormat.TD2.toString().split('.').last,
     };
   } catch (_) {
     return null;
