@@ -46,6 +46,7 @@ class _MyHomePageState extends State<MyHomePage> {
   );
   int logCount = 0;
   OcrMrzLog? lastLog;
+  List<String> fixed = [];
 
   showFoundPassport(OcrMrzResult res) {
     scanning = false;
@@ -63,6 +64,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    log(lastLog!.fixedMrzLines.join("\n"));
+    log(lastLog!.rawMrzLines.join("\n"));
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -87,11 +90,11 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(onPressed: () async {
-        final path = await controller.takePicture();
-        log("path :$path");
-
-      }),
+      // floatingActionButton: FloatingActionButton(onPressed: () async {
+      //   final path = await controller.takePicture();
+      //   log("path :$path");
+      //
+      // }),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -110,13 +113,15 @@ class _MyHomePageState extends State<MyHomePage> {
                       log("✅ ${a.documentType} matched:");
                     },
                     mrzLogger: (l) {
-                      if (l.rawMrzLines.isNotEmpty) {
+                      if (l.rawMrzLines.isNotEmpty && l.fixedMrzLines.join().trim().isNotEmpty) {
                         logCount++;
                         lastLog = l;
+                        fixed = l.fixedMrzLines;
                         setState(() {});
 
-                        log("log recieved");
-                        log(jsonEncode(l.toJson()));
+                        // log("log recieved\n${l.fixedMrzLines.join("\n")}");
+                        // log("log setted\n${lastLog!.fixedMrzLines.join("\n")}");
+                        // log(jsonEncode(l.toJson()));
                       }
                     },
 
@@ -135,7 +140,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                 children: [
                                   Row(children: [Expanded(child: FittedBox(child: Text(lastLog!.rawMrzLines.join("\n"))))]),
                                   Divider(),
-                                  Row(children: [Expanded(child: FittedBox(child: Text(lastLog!.fixedMrzLines.join("\n"))))]),
+                                  Row(children: [Expanded(child: FittedBox(child: Text(fixed.join("\n"))))]),
                                   Divider(),
                                   Row(children: [Expanded(child: FittedBox(child: Text(lastLog!.validation.toString())))]),
                                 ],

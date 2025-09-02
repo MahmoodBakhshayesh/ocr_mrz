@@ -1,103 +1,60 @@
 class DocumentCodeHelper {
-  /// Map of MRZ document codes → Human readable description
+  /// Explicit known ICAO codes (canonical)
   static const Map<String, String> _docCodeDescriptions = {
-    // General 1-char codes
-    'A': 'Crew Member Certificate',
-    'C': 'Residence Permit / Immigration Card / Crew Member Certificate',
-    'D': 'Diplomatic Travel Document (non-passport)',
-    'I': 'Identity Card',
-    'O': 'Official Travel Document (non-passport)',
-    'P': 'Passport (general)',
-    'R': 'Refugee Travel Document (1951 Convention)',
-    'S': 'Seafarer’s Identity Document',
-    'V': 'Visa',
-    'X': 'Stateless Person Travel Document (1954 Convention)',
+    'P<': 'Ordinary Passport',
+    'PD': 'Diplomatic Passport',
+    'PO': 'Official Passport',
+    'PS': 'Service Passport',
+    'PT': 'Temporary Passport',
+    'PX': 'Passport - Other national variant',
+    'PE': 'Romania e-passport variant',
 
-    // Two-char / variant codes
-    'C<': 'Residence Permit / Immigration Card',
-    'CA': 'Residence Permit - Variant A (Canada PR Card, etc.)',
-    'CB': 'Residence Permit - Variant B',
-
-    'D<': 'Diplomatic Travel Document (non-passport)',
+    'V<': 'Visa (default)',
+    'VA': 'Visa - Variant A',
+    'VB': 'Visa - Variant B',
 
     'I<': 'Identity Card',
     'IA': 'Identity Card - Variant A',
     'IB': 'Identity Card - Variant B',
 
-    'O<': 'Official Travel Document (non-passport)',
-
-    'P<': 'Ordinary Passport',
-    'PD': 'Diplomatic Passport',
-    'PE': 'Romania e-passport variant',
-    'PO': 'Official Passport',
-    'PS': 'Service Passport',
-    'PT': 'Temporary Passport',
-    'PX': 'Passport - Other national variant',
+    'C<': 'Residence Permit / Immigration Card',
+    'CA': 'Residence Permit - Variant A',
+    'CB': 'Residence Permit - Variant B',
 
     'R<': 'Refugee Travel Document (1951 Convention)',
-
     'S<': 'Seafarer’s Identity Document',
-
-    'V<': 'Visa',
-    'VA': 'Visa - Variant A',
-    'VB': 'Visa - Variant B',
-
     'X<': 'Stateless Person Travel Document (1954 Convention)',
+    'D<': 'Diplomatic Travel Document (non-passport)',
+    'O<': 'Official Travel Document (non-passport)',
   };
 
-  /// Returns true if [code] is a valid ICAO document code.
+  /// Category mapping (first letter → broad type)
+  static const Map<String, String> _categories = {
+    'P': 'Passport',
+    'V': 'Visa',
+    'I': 'Identity Card',
+    'C': 'Residence Permit',
+    'R': 'Refugee Travel Document',
+    'S': 'Seafarer Document',
+    'X': 'Stateless Person Document',
+    'D': 'Diplomatic Document',
+    'O': 'Official Document',
+    'A': 'Crew Member Certificate',
+  };
+
+  /// Returns true if [code] is a valid doc code prefix
   static bool isValid(String code) {
-    return _docCodeDescriptions.containsKey(code);
+    if (_docCodeDescriptions.containsKey(code)) return true;
+    return _categories.containsKey(code.substring(0, 1));
   }
 
-  /// Returns the description of [code], or "Unknown Document Code" if not found.
+  /// Returns category (Passport, Visa, etc.)
+  static String category(String code) {
+    return _categories[code.substring(0, 1)] ?? 'Unknown';
+  }
+
+  /// Returns description (if known), or falls back to category
   static String describe(String code) {
-    return _docCodeDescriptions[code] ?? 'Unknown Document Code';
+    return _docCodeDescriptions[code] ?? category(code);
   }
 }
-
-
-const validDocumentCodes = <String>[
-  // General single-letter codes
-  'A',   // Crew Member Certificate (alt use in some states)
-  'C',   // Residence Permit / Immigration Card / Crew Member Certificate
-  'D',   // Diplomatic Travel Document (non-passport)
-  'I',   // Identity Card
-  'O',   // Official Travel Document (non-passport)
-  'P',   // Passport (general category)
-  'R',   // Refugee Travel Document (1951 Convention)
-  'S',   // Seafarer’s Identity Document
-  'V',   // Visa
-  'X',   // Stateless Person Travel Document (1954 Convention)
-
-  // Two-character / variant codes
-  'C<',  // Residence Permit / Immigration Card
-  'CA',  // Residence Permit (e.g. Canada PR Card)
-  'CB',  // Residence Permit - Variant B
-
-  'D<',  // Diplomatic Travel Document (non-passport)
-
-  'I<',  // Identity Card
-  'IA',  // Identity Card - Variant A
-  'IB',  // Identity Card - Variant B
-
-  'O<',  // Official Travel Document (non-passport)
-
-  'P<',  // Ordinary Passport (most common form)
-  'PD',  // Diplomatic Passport
-  'PE',  // Romania e-passport variant
-  'PO',  // Official Passport
-  'PS',  // Service Passport
-  'PT',  // Temporary Passport
-  'PX',  // Passport - Other national variant
-
-  'R<',  // Refugee Travel Document (1951 Convention)
-
-  'S<',  // Seafarer’s Identity Document
-
-  'V<',  // Visa (most common form)
-  'VA',  // Visa - Variant A
-  'VB',  // Visa - Variant B
-
-  'X<',  // Stateless Person Travel Document (1954 Convention)
-];
