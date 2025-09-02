@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:camera_kit_plus/camera_kit_ocr_plus_view.dart';
+import 'package:ocr_mrz/doc_code_validator.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart'; // reuse your OcrMrzResult model or make a Visa variant if you prefer
 import 'package:ocr_mrz/name_validation_data_class.dart';
 
@@ -66,7 +67,7 @@ Map<String, dynamic>? _findVisaPairAndParse({
 
   // Candidate line-1: must start with V and contain << (names separator) to reduce false positives.
   final l1Candidates = enforced.entries
-      .where((e) => e.value.startsWith('V') && e.value.contains('<<'))
+      .where((e) => e.value.startsWith('V') && e.value.contains('<'))
       .toList();
 
   if (l1Candidates.isEmpty) return null;
@@ -131,7 +132,7 @@ Map<String, dynamic>? _tryVisaPairIndices({
 }) {
   if (!enforced.containsKey(j)) {
     final rawAllLines = ocr.lines.map((e) => e.text).toList();
-    final rawMrzLines = rawAllLines.where((a)=>a.length>35 && a.contains("<<")).toList();
+    final rawMrzLines = rawAllLines.where((a)=>a.length>35 && a.contains("<")).toList();
     mrzLogger?.call(OcrMrzLog(rawText: ocr.text, rawMrzLines: rawMrzLines, fixedMrzLines: [line1],validation:OcrMrzValidation(),extractedData: {}));
     return null;
   }
@@ -140,7 +141,7 @@ Map<String, dynamic>? _tryVisaPairIndices({
   // Line-2 should NOT start with 'V' (it begins with doc number)
   if (candidateL2.startsWith('V')) {
     final rawAllLines = ocr.lines.map((e) => e.text).toList();
-    final rawMrzLines = rawAllLines.where((a)=>a.length>35 && a.contains("<<")).toList();
+    final rawMrzLines = rawAllLines.where((a)=>a.length>35 && a.contains("<")).toList();
     mrzLogger?.call(OcrMrzLog(rawText: ocr.text, rawMrzLines: rawMrzLines, fixedMrzLines: [line1],validation:OcrMrzValidation(),extractedData: {}));
 
     return null;
@@ -150,7 +151,7 @@ Map<String, dynamic>? _tryVisaPairIndices({
   final line2 = _repairVisaLine2(candidateL2, targetLen);
   if (!_looksLikeVisaLine2(line2)) {
     final rawAllLines = ocr.lines.map((e) => e.text).toList();
-    final rawMrzLines = rawAllLines.where((a)=>a.length>35 && a.contains("<<")).toList();
+    final rawMrzLines = rawAllLines.where((a)=>a.length>35 && a.contains("<")).toList();
     mrzLogger?.call(OcrMrzLog(rawText: ocr.text, rawMrzLines: rawMrzLines, fixedMrzLines: [line1,line2],validation:OcrMrzValidation(),extractedData: {}));
     return null;
   }
@@ -346,7 +347,9 @@ Map<String, dynamic>? _parseVisaCommon({
     log("_parseVisaCommon");
     // --- Line 1 ---
     final documentType = line1.substring(0, 1); // 'V'
+    final documentCode = line1.substring(0, 2); // 'V'
     final visaType = line1.substring(1, 2); // optional category by issuer
+
     final issuingState = fixAlphaOnlyField(line1.substring(2, 5)); // country/org
     final nameField = line1.substring(5);
 
@@ -385,6 +388,7 @@ Map<String, dynamic>? _parseVisaCommon({
     final birthOk = !validateSettings.validateBirthDateValid || validBirth;
     final expiryOk = !validateSettings.validateExpiryDateValid || validExpiry;
     final docOk = !validateSettings.validateDocNumberValid || validDoc;
+    final docCodeValid = !validateSettings.validateDocNumberValid || DocumentCodeHelper.isValid(documentCode);
 
 
     // if (!(namesOk && issuingOk && nationalityOk && birthOk && expiryOk && docOk)) return null;
@@ -395,6 +399,7 @@ Map<String, dynamic>? _parseVisaCommon({
       // Raw
       'line1': line1,
       'line2': line2,
+      'documentCode': documentCode,
 
       // Types & format
       'documentType': documentType,                   // 'V'
@@ -425,6 +430,7 @@ Map<String, dynamic>? _parseVisaCommon({
       // Validations
       'valid': _visaValidationMap(
         docOk: validDoc,
+        documentCode:docCodeValid,
         birthOk: validBirth,
         expiryOk: validExpiry,
         namesOk: namesOk,
@@ -499,6 +505,7 @@ OcrMrzValidation validateMrzLineVisa({
   OcrMrzValidation validation = OcrMrzValidation();
   try {
     final docNumber = line2.substring(0, 9);
+    final docCode = line1.substring(0, 2);
     final docCheck = line2.substring(9, 10);
     final nationality =fixAlphaOnlyField(line2.substring(10, 13));
     final birth = line2.substring(13, 19);
@@ -525,7 +532,7 @@ OcrMrzValidation validateMrzLineVisa({
     final expiryOk = !validation.expiryDateValid || validExpiry;
     final docOk = !validation.docNumberValid || validDoc;
 
-
+    validation.docCodeValid = DocumentCodeHelper.isValid(docCode);
     validation.docNumberValid = docOk;
     validation.birthDateValid = birthOk;
     validation.expiryDateValid = expiryOk;
@@ -643,6 +650,7 @@ String _computeMrzCheckDigit(String input) {
 
 Map<String, dynamic> _visaValidationMap({
   required bool docOk,
+  required bool documentCode,
   required bool birthOk,
   required bool expiryOk,
   required bool namesOk,
@@ -653,6 +661,7 @@ Map<String, dynamic> _visaValidationMap({
   return {
     "docNumberValid": docOk,
     "birthDateValid": birthOk,
+    "docCodeValid": documentCode,
     "expiryDateValid": expiryOk,
     "personalNumberValid": true, // MRV optional field has no check digit; treat as present/ok
     "finalCheckValid": true,    // visas don't have composite final
@@ -661,7 +670,6 @@ Map<String, dynamic> _visaValidationMap({
     "linesLengthValid": (lineLen == 36 || lineLen == 44),
     "countryValid": issuingOk,
     "nationalityValid": nationalityOk,
-
   };
 }
 

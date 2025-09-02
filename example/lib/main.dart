@@ -33,6 +33,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  OcrMrzController controller = OcrMrzController();
   bool scanning = true;
   OcrMrzSetting setting = OcrMrzSetting(
     validateBirthDateValid: true,
@@ -66,7 +67,6 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text("Passport Reader ${logCount}"),
-
         actions: [
           IconButton(
             onPressed: () {
@@ -77,15 +77,21 @@ class _MyHomePageState extends State<MyHomePage> {
                 },
               ).then((a) {
                 if (a is OcrMrzSetting) {
-                  setting = a;
+                  setting = OcrMrzSetting.fromJson(a.toJson());
                   setState(() {});
                 }
               });
+              // controller.flashOn();
             },
             icon: Icon(Icons.settings),
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(onPressed: () async {
+        final path = await controller.takePicture();
+        log("path :$path");
+
+      }),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -94,6 +100,8 @@ class _MyHomePageState extends State<MyHomePage> {
               child: Stack(
                 children: [
                   OcrMrzReader(
+                    controller:controller,
+
                     setting: setting,
                     onFoundMrz: (a) {
                       if (scanning) {
@@ -111,6 +119,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         log(jsonEncode(l.toJson()));
                       }
                     },
+
                   ),
                   Positioned(
                     bottom: 24,

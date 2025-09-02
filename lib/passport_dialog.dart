@@ -44,10 +44,11 @@ class _PassportDialogState extends State<PassportDialog> {
             _headerSection(context,widget.result),
             const SizedBox(height: 12),
             _infoRow('Name', '${widget.result.firstName} ${widget.result.lastName}',widget.result.valid.nameValid),
-            _infoRow('Passport No', widget.result.passportNumber,widget.result.valid.docNumberValid),
+            _infoRow('Doc Code', widget.result.documentCode,widget.result.valid.docCodeValid),
             _infoRow('Nationality', widget.result.nationality,widget.result.valid.nationalityValid),
             _infoRow('Country Code', widget.result.countryCode,widget.result.valid.countryValid),
             _infoRow('Sex', widget.result.sex,true),
+
             _infoRow('Birth Date', _formatDate(widget.result.birthDate),widget.result.valid.birthDateValid),
             _infoRow('Expiry Date', _formatDate(widget.result.expiryDate),widget.result.valid.expiryDateValid),
             _infoRow('Lines Length', "${widget.result.line1.length} ,${widget.result.line2.length}",widget.result.valid.linesLengthValid),
@@ -86,7 +87,7 @@ class _PassportDialogState extends State<PassportDialog> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          '${widget.result.documentType}',
+          '${widget.result.documentType} - ${widget.result.documentCode}',
 
           style: const TextStyle(
             color: Colors.white,

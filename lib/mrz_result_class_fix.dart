@@ -13,6 +13,7 @@ class OcrMrzResult {
 
   /// ICAO MRZ document type (e.g., 'P' passport, 'V' visa)
   String documentType;
+  String documentCode;
 
   /// Best-known MRZ format (TD3 for passports, MRV-A/MRV-B for visas)
   MrzFormat mrzFormat;
@@ -75,6 +76,7 @@ class OcrMrzResult {
     required this.line1,
     required this.line2,
     required this.format,
+    required this.documentCode,
     this.line3,
     required this.documentType,
     required this.mrzFormat,
@@ -127,6 +129,7 @@ class OcrMrzResult {
     // issuing state vs country
     final issuing = (json["issuingState"] ?? json["countryCode"] ?? '').toString();
     final country = (json["countryCode"] ?? issuing).toString();
+    final documentCode = (json["documentCode"] ?? json["documentType"]).toString();
 
     // document number: accept new key, fallback to old "passportNumber"
     final docNo = (json["documentNumber"] ?? json["passportNumber"] ?? '').toString();
@@ -139,7 +142,7 @@ class OcrMrzResult {
       line1: json["line1"],
       line2: json["line2"],
       line3: json["line3"],
-
+      documentCode: json["documentCode"],
       documentType: docType,
       mrzFormat: fmt,
       countryCode: country,
@@ -170,7 +173,8 @@ class OcrMrzResult {
     final map = <String, dynamic>{
       "line1": line1,
       "line2": line2,
-
+      "line3":line3,
+      "documentCode":documentCode,
       "documentType": documentType,
       "mrzFormat": _formatToString(mrzFormat),
       "format": format.toString().split('.').last,
@@ -261,6 +265,7 @@ class CheckDigits {
 
 class OcrMrzValidation {
   bool docNumberValid;
+  bool docCodeValid;
   bool birthDateValid;
   bool expiryDateValid;
   bool personalNumberValid;
@@ -279,6 +284,7 @@ class OcrMrzValidation {
 
   OcrMrzValidation({
     this.docNumberValid = false,
+    this.docCodeValid = false,
     this.birthDateValid = false,
     this.expiryDateValid = false,
     this.personalNumberValid = false,
@@ -292,6 +298,7 @@ class OcrMrzValidation {
 
   factory OcrMrzValidation.fromJson(Map<String, dynamic> json) => OcrMrzValidation(
     docNumberValid: json["docNumberValid"] ?? false,
+    docCodeValid: json["docCodeValid"] ?? false,
     birthDateValid: json["birthDateValid"] ?? false,
     expiryDateValid: json["expiryDateValid"] ?? false,
     personalNumberValid: json["personalNumberValid"] ?? false,
@@ -306,6 +313,7 @@ class OcrMrzValidation {
   Map<String, dynamic> toJson() => {
     "docNumberValid": docNumberValid,
     "birthDateValid": birthDateValid,
+    "docCodeValid": docCodeValid,
     "expiryDateValid": expiryDateValid,
     "personalNumberValid": personalNumberValid,
     "finalCheckValid": finalCheckValid,
@@ -322,6 +330,7 @@ class OcrMrzValidation {
         ? "Final ${finalCheckValid ? '✅' : '❌'}"
         : "Final N/A";
     return "Number ${docNumberValid ? '✅' : '❌'} "
+        "Code ${docCodeValid ? '✅' : '❌'} "
         "Birth ${birthDateValid ? '✅' : '❌'} "
         "Expiry ${expiryDateValid ? '✅' : '❌'} "
         "Personal ${personalNumberValid ? '✅' : '❌'}  "

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:camera_kit_plus/camera_kit_ocr_plus_view.dart';
+import 'package:ocr_mrz/doc_code_validator.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart';
 import 'package:ocr_mrz/name_validation_data_class.dart';
 import 'package:ocr_mrz/orc_mrz_log_class.dart';
@@ -44,8 +45,8 @@ String _normalizeLine(String line) {
 
 Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? setting, List<NameValidationData>? nameValidations, void Function(OcrMrzLog log)? mrzLogger) {
   List<String> ocrLines = ocrData.lines.map((a) => a.text).toList();
-  final mrzLines = ocrLines.where((a)=>a.length>35 && a.contains("<<")).map(_normalizeLine).where((line) => line.length == 44 && line.contains(RegExp(r'<{2,}'))).toList();
-  final rawMrzLines = [...ocrLines.where((a)=>a.length>35 && a.contains("<<"))];
+  final mrzLines = ocrLines.where((a)=>a.length>35 && a.contains("<")).map(_normalizeLine).where((line) => line.length == 44 && line.contains(RegExp(r'<{1,}'))).toList();
+  final rawMrzLines = [...ocrLines.where((a)=>a.length>35 && a.contains("<"))];
   if (mrzLines.length < 2) {
     mrzLogger?.call(OcrMrzLog(rawText: ocrData.text, rawMrzLines: rawMrzLines, fixedMrzLines: mrzLines,validation:OcrMrzValidation(),extractedData: {}));
     return null;
@@ -56,7 +57,7 @@ Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? se
 
   final oldLine1 = line1;
   final oldLine2 = line2;
-  List<String> otherLines = ocrLines.where((a) => !mrzLines.contains(a)).toList();
+  List<String> otherLines = ocrLines.where((a) => !mrzLines.contains(a) && !a.contains("<")).toList();
 
   line1 = normalizeMrzLine1(line1); // ✅ repaired
   line2 = repairMrzLine2Strict(line2); // ✅ repaired
@@ -64,6 +65,7 @@ Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? se
 
   try {
     final documentType = line1.substring(0, 1);
+    final documentCode = line1.substring(0, 2);
     final countryCode = fixAlphaOnlyField(line1.substring(2, 5));
     final nameParts = line1.substring(5).split('<<');
     var lastName = nameParts[0].replaceAll('<', ' ').trim();
@@ -93,11 +95,12 @@ Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? se
 
 
     final validateSettings = setting ?? OcrMrzSetting();
-    final validation = validateMrzLine(line1: line1, line2: line2, otherLines: otherLines, firstName: firstName, lastName: lastName, setting: validateSettings, country: countryCode, nationality: nationality, personalNumber: personalNumber,nameValidations:nameValidations);
+    final validation = validateMrzLine(line1: line1, line2: line2, otherLines: otherLines, firstName: firstName, lastName: lastName, setting: validateSettings, country: countryCode, nationality: nationality, personalNumber: personalNumber,nameValidations:nameValidations,code:documentCode);
 
     final resultMap = {
       'line1': line1,
       'line2': line2,
+      'documentCode':documentCode,
       'documentType': documentType,
       'countryCode': countryCode,
       'lastName': lastName,
@@ -123,7 +126,7 @@ Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? se
 
 
     if(validation.linesLengthValid){
-      log("\n$oldLine1\n$oldLine2\n${"-"*50}\n$line1\n$line2\n$validation\n${passportNumber} - ${birthDate} - ${expiryDate} - ${personalNumber}  - ${countryCode} - ${nationality} - ${firstName} ${lastName}");
+      // log("\n$oldLine1\n$oldLine2\n${"-"*50}\n$line1\n$line2\n$validation\n${passportNumber} - ${birthDate} - ${expiryDate} - ${personalNumber}  - ${countryCode} - ${nationality} - ${firstName} ${lastName}");
       // log(validation.toString());
     }
 
@@ -154,7 +157,7 @@ Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? se
     }
     if (validateSettings.validatePersonalNumberValid && !validation.personalNumberValid) {
       // log("$line1\n$line2");
-      log("Personal number is ${personalNumber}");
+      // log("Personal number is ${personalNumber}");
       return null;
     }
     if (validateSettings.validateCountry && !validation.countryValid) {
@@ -303,6 +306,7 @@ String repairSpecificFields(String line) {
 OcrMrzValidation validateMrzLine({
   required String line1,
   required String line2,
+  required String code,
   required OcrMrzSetting setting,
   required List<String> otherLines,
   required String firstName,
@@ -315,6 +319,11 @@ OcrMrzValidation validateMrzLine({
   OcrMrzValidation validation = OcrMrzValidation();
   try {
     validation.linesLengthValid = (line2.length == 44 && line1.length == 44);
+
+    String docCode = code;
+    bool isDocCodeValid = DocumentCodeHelper.isValid(docCode);
+    validation.docCodeValid = isDocCodeValid;
+
 
     String docNumber = line2.substring(0, 9);
     String docCheck = line2[9];
@@ -408,12 +417,7 @@ bool validateNames(String firstName, String lastName, Iterable<String> lines) {
   final isFirstNameValid = firstName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
   final isLastNameValid = lastName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
   final res = isLastNameValid && isFirstNameValid;
-  // if (!isFirstNameValid) {
-  //   log("${firstName.toLowerCase().split(" ")} in $words");
-  // }
-  // if (!isLastNameValid) {
-  //   log("${lastName.toLowerCase().split(" ")} in $words");
-  // }
+
   return res;
 }
 
@@ -421,267 +425,3 @@ List<String> extractWords(String text) {
   final wordRegExp = RegExp(r'\b\w+\b');
   return wordRegExp.allMatches(text).map((match) => match.group(0)!).toList();
 }
-
-// void handleOcr(OcrData ocr, void Function(OcrMrzResult res) onFoundMrz, OcrMrzSetting? setting, List<NameValidationData>? nameValidations) {
-//   // final ocrLines = ocr.lines.map((a)=>a.text).toList();
-//   try {
-//     final mrz = tryParseMrzFromOcrLines(ocr, setting,nameValidations);
-//     if (mrz != null) {
-//       log("✅ Valid MRZ:");
-//       final ocrMR = OcrMrzResult.fromJson(mrz);
-//       log("${ocrMR.line1}\n${ocrMR.line2}");
-//       onFoundMrz(ocrMR);
-//     }
-//   } catch (e) {
-//     log(e.toString());
-//     if (e is Error) {
-//       log(e.stackTrace.toString());
-//     }
-//   }
-// }
-
-const Set<String> mrzCountryCodes = {
-  "AFG",
-  "XES",
-  "ALB",
-  "DZA",
-  "ASM",
-  "AND",
-  "AGO",
-  "AIA",
-  "ATA",
-  "ATG",
-  "ARG",
-  "ARM",
-  "ABW",
-  "AUS",
-  "AUT",
-  "AZE",
-  "BHS",
-  "BHR",
-  "BGD",
-  "BRB",
-  "BLR",
-  "BEL",
-  "BLZ",
-  "BEN",
-  "BMU",
-  "BTN",
-  "BOL",
-  "BIH",
-  "BWA",
-  "BVT",
-  "BRA",
-  "IOT",
-  "BRN",
-  "BGR",
-  "BFA",
-  "BDI",
-  "KHM",
-  "CMR",
-  "CAN",
-  "CPV",
-  "CYM",
-  "CAF",
-  "TCD",
-  "CHL",
-  "CHN",
-  "CXR",
-  "CCK",
-  "COL",
-  "COM",
-  "COG",
-  "COD",
-  "COK",
-  "CRI",
-  "CIV",
-  "HRV",
-  "CUB",
-  "CYP",
-  "CZE",
-  "DNK",
-  "DJI",
-  "DMA",
-  "DOM",
-  "ECU",
-  "EGY",
-  "SLV",
-  "GNQ",
-  "ERI",
-  "EST",
-  "ETH",
-  "FLK",
-  "FRO",
-  "FJI",
-  "FIN",
-  "FRA",
-  "GUF",
-  "PYF",
-  "ATF",
-  "GAB",
-  "GMB",
-  "GEO",
-  "DEU",
-  "GHA",
-  "GIB",
-  "GRC",
-  "GRL",
-  "GRD",
-  "GLP",
-  "GUM",
-  "GTM",
-  "GIN",
-  "GNB",
-  "GUY",
-  "HTI",
-  "HMD",
-  "HND",
-  "HKG",
-  "HUN",
-  "ISL",
-  "IND",
-  "IDN",
-  "IRN",
-  "IRQ",
-  "IRL",
-  "ISR",
-  "ITA",
-  "JAM",
-  "JPN",
-  "JOR",
-  "KAZ",
-  "KEN",
-  "KIR",
-  "PRK",
-  "KOR",
-  "KWT",
-  "KGZ",
-  "LAO",
-  "LVA",
-  "LBN",
-  "LSO",
-  "LBR",
-  "LBY",
-  "LIE",
-  "LTU",
-  "LUX",
-  "MAC",
-  "MKD",
-  "MDG",
-  "MWI",
-  "MYS",
-  "MDV",
-  "MLI",
-  "MLT",
-  "MHL",
-  "MTQ",
-  "MRT",
-  "MUS",
-  "MYT",
-  "MEX",
-  "FSM",
-  "MDA",
-  "MCO",
-  "MNG",
-  "MSR",
-  "MAR",
-  "MOZ",
-  "MMR",
-  "NAM",
-  "NRU",
-  "NPL",
-  "NLD",
-  "ANT",
-  "NCL",
-  "NZL",
-  "NIC",
-  "NER",
-  "NGA",
-  "NIU",
-  "NFK",
-  "MNP",
-  "NOR",
-  "OMN",
-  "PAK",
-  "PLW",
-  "PSE",
-  "PAN",
-  "PNG",
-  "PRY",
-  "PER",
-  "PHL",
-  "PCN",
-  "POL",
-  "PRT",
-  "PRI",
-  "QAT",
-  "REU",
-  "ROU",
-  "RUS",
-  "RWA",
-  "SHN",
-  "KNA",
-  "LCA",
-  "SPM",
-  "VCT",
-  "WSM",
-  "SMR",
-  "STP",
-  "SAU",
-  "SEN",
-  "SCG",
-  "SYC",
-  "SLE",
-  "SGP",
-  "SVK",
-  "SVN",
-  "SLB",
-  "SOM",
-  "ZAF",
-  "SGS",
-  "ESP",
-  "LKA",
-  "SDN",
-  "SUR",
-  "SJM",
-  "SWZ",
-  "SWE",
-  "CHE",
-  "SYR",
-  "TWN",
-  "TJK",
-  "TZA",
-  "THA",
-  "TLS",
-  "TGO",
-  "TKL",
-  "TON",
-  "TTO",
-  "TUN",
-  "TUR",
-  "TKM",
-  "TCA",
-  "TUV",
-  "UGA",
-  "UKR",
-  "ARE",
-  "GBR",
-  "USA",
-  "URY",
-  "UZB",
-  "VUT",
-  "VAT",
-  "VEN",
-  "VNM",
-  "VGB",
-  "VIR",
-  "WLF",
-  "ESH",
-  "YEM",
-  "ZMB",
-  "ZWE",
-};
-
-// bool isValidMrzCountry(String code) {
-//   return mrzCountryCodes.contains(code.toUpperCase());
-// }

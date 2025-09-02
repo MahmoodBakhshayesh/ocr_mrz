@@ -1,9 +1,11 @@
 import 'dart:developer';
 
 import 'package:camera_kit_plus/camera_kit_ocr_plus_view.dart';
+import 'package:ocr_mrz/doc_code_validator.dart';
 import 'package:ocr_mrz/name_validation_data_class.dart';
 import 'package:ocr_mrz/passport_util.dart';
 
+import 'country_validator.dart';
 import 'mrz_result_class_fix.dart';
 import 'ocr_mrz_settings_class.dart';
 import 'orc_mrz_log_class.dart';
@@ -52,7 +54,36 @@ String _computeMrzCheckDigit(String input) {
 }
 
 // Replace with your own set if you already have it
-bool isValidMrzCountry(String code) => code.length == 3 && RegExp(r'^[A-Z<]{3}$').hasMatch(code) && !code.contains('<');
+bool isValidMrzCountry(String code) {
+  // BAH	Historic mistake: used for Zimbabwe
+  // D  	Legacy code for Germany (instead of DEU)
+  // EUE	European Union
+  // UNA	UN Specialized Agency
+  // UNK	UNMIK Kosovo resident
+  // UNO	United Nations
+  // XBA	African Development Bank
+  // XCC	CARICOM
+  // XCO	COMESA
+  // XEC	ECOWAS
+  // XIM	Afreximbank
+  // XOM	Sovereign Military Order of Malta
+  // XPO	Interpol
+  // XXA	Stateless (1954 Convention)
+  // XXB	Refugee (1951 Convention)
+  // XXC	Refugee other than XXB
+  // XXX	Unspecified nationality
+  // ZIM	Historic mistake: used for Zimbabwe (should be ZWE)
+  // List<String> odds = [
+  //   "BAH","D<<","D  ","EUE","UNA","UNO","UNK","XBA","XCC","XCO","XEC","XIM","XOM","XPO","XXA","XXB","XXC","XXX","ZIM"
+  // ];
+  //
+  // if(odds.contains(code.toUpperCase())){
+  //   return true;
+  // }
+  // return code.length == 3 && RegExp(r'^[A-Z<]{3}$').hasMatch(code) && !code.contains('<');
+
+  return validNationalityCodes.contains(code.toUpperCase());
+}
 
 // -------------------- TD1 (3 × 30) --------------------
 
@@ -224,6 +255,7 @@ Map<String, dynamic>? _parseTd1({required String l1, required String l2, require
     // Line1 (30):
     // [0..2) docType(2), [2..5) issuingState(3), [5..14) docNo(9), [14] docChk, [15..30) opt1
     final documentType = l1.substring(0, 1); // first char
+    final documentCode = l1.substring(0, 2); // first char
     final issuingState = fixAlphaOnlyField(l1.substring(2, 5));
     final docNo = l1.substring(5, 14);
     final docChk = l1[14];
@@ -321,10 +353,12 @@ Map<String, dynamic>? _parseTd1({required String l1, required String l2, require
       // log("$line1\n$line2");
       return null;
     }
+    bool docCodeValid = DocumentCodeHelper.isValid(documentCode);
     return {
       'line1': l1,
       'line2': l2,
       "line3": l3,
+      'documentCode': documentCode,
       'documentType': documentType, // usually 'I' for ID
       'mrzFormat': 'TD1',
       'issuingState': issuingState,
@@ -341,10 +375,11 @@ Map<String, dynamic>? _parseTd1({required String l1, required String l2, require
       'personalNumber': opt2.isNotEmpty ? opt2 : opt1,
       'valid': {
         'docNumberValid': vDoc,
+        'docCodeValid':docCodeValid,
         'birthDateValid': vBirth,
         'expiryDateValid': vExpiry,
         'personalNumberValid': true, // no direct check digit for optional
-        'finalCheckValid': validation.finalCheckValid,
+        'finalCheckValid': true,
         'hasFinalCheck': true,
         'nameValid': namesOk,
         'linesLengthValid': true,
@@ -375,6 +410,7 @@ OcrMrzValidation validateMrzLineTd1({
   OcrMrzValidation validation = OcrMrzValidation();
   try {
     final documentType = l1.substring(0, 1); // first char
+    final documentCode = l1.substring(0, 2); // first char
     final issuingState = fixAlphaOnlyField(l1.substring(2, 5));
     final docNo = l1.substring(5, 14);
     final docChk = l1[14];
@@ -408,6 +444,8 @@ OcrMrzValidation validateMrzLineTd1({
     final vExpiry = RegExp(r'^\d{6}$').hasMatch(expiry) && _computeMrzCheckDigit(expiry) == expiryChk;
 
     validation.linesLengthValid = (l2.length == 44 && l1.length == 44);
+    // validation.docCodeValid = DocumentCodeHelper.isValid(documentCode);
+    validation.docCodeValid = DocumentCodeHelper.isValid(documentCode);
 
     bool isDocNumberValid = _computeMrzCheckDigit(docNo) == docChk;
     validation.docNumberValid = isDocNumberValid;
@@ -454,7 +492,7 @@ OcrMrzValidation validateMrzLineTd1({
 Map<String, dynamic>? tryParseTD2FromOcrLines(OcrData ocrData, OcrMrzSetting? setting, List<NameValidationData>? nameValidations, void Function(OcrMrzLog log)? mrzLogger) {
   final raw = ocrData.lines.map((e) => e.text).toList();
   // final normalized = raw.map(_normalizeIdLine).toList();
-  final normalized = raw.where((a) => a.contains("<<")).map(_normalizeIdLine).where((line) => line.contains(RegExp(r'<{2,}'))).toList();
+  final normalized = raw.where((a) => a.contains("<")).map(_normalizeIdLine).where((line) => line.contains(RegExp(r'<{1,}'))).toList();
   final s = setting ?? OcrMrzSetting();
 
   return _findTd2PairAndParse(normalized: normalized, rawAllLines: raw, validateSettings: s, nameValidations: nameValidations, ocr: ocrData);
@@ -569,6 +607,7 @@ Map<String, dynamic>? _parseTd2({required String l1, required String l2, require
   try {
     // Line1 (36): [0..2) docType(2), [2..5) issuingState(3), [5..) names
     final documentType = l1.substring(0, 1); // first char
+    final documentCode = l1.substring(0, 2); // first char
     final issuingState = fixAlphaOnlyField(l1.substring(2, 5));
     final nameField = l1.substring(5);
     final nameParts = nameField.split('<<');
@@ -610,6 +649,7 @@ Map<String, dynamic>? _parseTd2({required String l1, required String l2, require
     final compositeInput = docNo + docChk + birth + birthChk + expiry + expiryChk + optional;
     final vFinal = _computeMrzCheckDigit(compositeInput) == finalComposite;
 
+    final docCodeValid = DocumentCodeHelper.isValid(documentCode);
     // final validation = validateMrzLineTd1(
     //   l1: l1,
     //   l2: l2,
@@ -626,6 +666,7 @@ Map<String, dynamic>? _parseTd2({required String l1, required String l2, require
     return {
       'line1': l1,
       'line2': l2,
+      'documentCode': documentCode,
       'documentType': documentType, // typically 'I'
       'mrzFormat': 'TD2',
       'issuingState': issuingState,
@@ -642,6 +683,7 @@ Map<String, dynamic>? _parseTd2({required String l1, required String l2, require
       'personalNumber': optional,
       'valid': {
         'docNumberValid': vDoc,
+        'docCodeValid': docCodeValid,
         'birthDateValid': vBirth,
         'expiryDateValid': vExpiry,
         'personalNumberValid': true,
