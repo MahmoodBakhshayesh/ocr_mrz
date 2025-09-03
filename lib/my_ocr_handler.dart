@@ -81,7 +81,13 @@ String fixAlphaOnlyField(String value) {
 
 String fixExceptionalCountry(String value) {
   final map = {'D<<': 'DEU', 'D': 'DEU', 'D  ': 'DEU', 'BAH': 'ZWE', 'ZIM': 'ZWE', 'UK': 'GBR', 'UK<': 'GBR', 'UK ': 'GBR', 'SUN': 'RUS', 'GRE': 'GRC', 'CSK': 'CZE','I':'ITA','I<<':'ITA','I  ':'ITA','F  ':'FRA','F<<':'FRA','F':'FRA','A  ':'AUT','A<<':'AUT','A':'AUT','CH ':'CHE','CH<':'CHE','CH':'CHE',};
-  return value.toUpperCase().split('').map((c) => map[c] ?? c).join();
+  if(map.keys.contains(value)){
+    return map[value]!;
+  }else{
+    return value;
+  }
+
+  // return value.toUpperCase().split('').map((c) => map[c] ?? c).join();
 }
 
 List<String> parseOldNumNat(String secondLineFixed) {
