@@ -289,7 +289,7 @@ class OcrMrzValidation {
     this.expiryDateValid = false,
     this.personalNumberValid = false,
     this.finalCheckValid = false,
-    this.hasFinalCheck = true,
+    this.hasFinalCheck = false,
     this.nameValid = false,
     this.linesLengthValid = false,
     this.countryValid = false,

@@ -64,8 +64,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    log(lastLog!.fixedMrzLines.join("\n"));
-    log(lastLog!.rawMrzLines.join("\n"));
+    // log(lastLog!.fixedMrzLines.join("\n"));
+    // log(lastLog!.rawMrzLines.join("\n"));
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -108,7 +108,11 @@ class _MyHomePageState extends State<MyHomePage> {
                     setting: setting,
                     onFoundMrz: (a) {
                       if (scanning) {
-                        showFoundPassport(a);
+                        if(a.matchSetting(setting)) {
+                          showFoundPassport(a);
+                        }else{
+                          log("res does not match setting");
+                        }
                       }
                       log("✅ ${a.documentType} matched:");
                     },
@@ -142,7 +146,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                   Divider(),
                                   Row(children: [Expanded(child: FittedBox(child: Text(fixed.join("\n"))))]),
                                   Divider(),
-                                  Row(children: [Expanded(child: FittedBox(child: Text(lastLog!.validation.toString())))]),
+                                  Row(children: [Expanded(child: FittedBox(child: Text(lastLog!.validation.toString(),)))]),
                                 ],
                               ),
                             ),

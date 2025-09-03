@@ -1,5 +1,12 @@
+import 'dart:developer';
+
 import 'package:flutter/foundation.dart';
 
+import 'mrz_result_class_fix.dart';
+enum ParseAlgorithm {
+  method1,
+  method2
+}
 @immutable
 class OcrMrzSetting {
   final bool validateDocNumberValid;
@@ -14,6 +21,7 @@ class OcrMrzSetting {
   final bool validationDocumentCode;
   final int rotation; // degrees (0..359)
   final bool macro;
+  final ParseAlgorithm algorithm;
 
   const OcrMrzSetting({
     this.validateDocNumberValid = true,
@@ -28,6 +36,7 @@ class OcrMrzSetting {
     this.validateNationality = true,
     this.rotation = 0,
     this.macro = false,
+    this.algorithm = ParseAlgorithm.method1,
   });
 
   OcrMrzSetting copyWith({
@@ -43,6 +52,7 @@ class OcrMrzSetting {
     bool? validateNationality,
     int? rotation,
     bool? macro,
+    ParseAlgorithm? algorithm,
   }) {
     return OcrMrzSetting(
       validateDocNumberValid: validateDocNumberValid ?? this.validateDocNumberValid,
@@ -57,6 +67,7 @@ class OcrMrzSetting {
       validateNationality: validateNationality ?? this.validateNationality,
       rotation: (rotation ?? this.rotation) % 360,
       macro: macro ?? this.macro,
+      algorithm: algorithm ?? this.algorithm,
     );
   }
 
@@ -75,6 +86,7 @@ class OcrMrzSetting {
       validateNationality: (json['validateNationality'] as bool?) ?? true,
       rotation: rot,
       macro: (json['macro'] as bool?) ?? false,
+      algorithm:ParseAlgorithm.values.firstWhere((a)=>a.index == json["algorithm"]),
     );
   }
 
@@ -91,6 +103,7 @@ class OcrMrzSetting {
     "validateNationality": validateNationality,
     "rotation": rotation,
     "macro": macro,
+    "algorithm": algorithm.index,
   };
 
   @override
@@ -108,6 +121,7 @@ class OcrMrzSetting {
               validateCountry == other.validateCountry &&
               validateNationality == other.validateNationality &&
               rotation == other.rotation &&
+              algorithm == other.algorithm &&
               macro == other.macro;
 
   @override
@@ -124,6 +138,7 @@ class OcrMrzSetting {
     validateNationality,
     rotation,
     macro,
+    algorithm,
   );
 
   @override
@@ -131,5 +146,36 @@ class OcrMrzSetting {
       'OcrMrzSetting(macro:$macro, rotation:$rotation, doc:$validateDocNumberValid, code:$validationDocumentCode, '
           'birth:$validateBirthDateValid, exp:$validateExpiryDateValid, pn:$validatePersonalNumberValid, '
           'final:$validateFinalCheckValid, names:$validateNames, len:$validateLinesLength, '
-          'country:$validateCountry, nat:$validateNationality)';
+          'country:$validateCountry, nat:$validateNationality) alg:${algorithm.name}';
 }
+
+extension MrzValidationExt on OcrMrzResult {
+  bool matchSetting(OcrMrzSetting setting) {
+    // log(
+    //   '''
+    //   ${valid.expiryDateValid} == ${setting.validateExpiryDateValid}
+    //   ${valid.finalCheckValid} == ${setting.validateFinalCheckValid}
+    //   ${valid.linesLengthValid} == ${setting.validateLinesLength}
+    //   ${valid.nameValid} == ${setting.validateNames}
+    //   ${valid.nationalityValid} == ${setting.validateNationality}
+    //   ${valid.personalNumberValid} == ${setting.validatePersonalNumberValid}
+    //   ${valid.birthDateValid} == ${setting.validateBirthDateValid}
+    //   ${valid.countryValid} == ${setting.validateCountry}
+    //   ${valid.docNumberValid} == ${setting.validateDocNumberValid}
+    //   '''
+    // );
+
+
+
+    return (valid.expiryDateValid || !setting.validateExpiryDateValid) &&
+        (valid.finalCheckValid || !setting.validateFinalCheckValid) &&
+        (valid.linesLengthValid || !setting.validateLinesLength) &&
+        (valid.nameValid || !setting.validateNames) &&
+        (valid.nationalityValid || !setting.validateNationality) &&
+        (valid.personalNumberValid || !setting.validatePersonalNumberValid) &&
+        (valid.birthDateValid || !setting.validateBirthDateValid) &&
+        (valid.countryValid || !setting.validateCountry) &&
+        (valid.docNumberValid || !setting.validateDocNumberValid);
+  }
+}
+

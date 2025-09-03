@@ -6,14 +6,16 @@ import 'package:camera_kit_plus/enums.dart';
 import 'package:flutter/material.dart';
 import 'package:camera_kit_plus/camera_kit_plus.dart';
 import 'package:ocr_mrz/mrz_result_class.dart';
+import 'package:ocr_mrz/my_ocr_handler.dart';
 import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 import 'package:ocr_mrz/orc_mrz_log_class.dart';
 import 'package:ocr_mrz/passport_util.dart';
 
 import 'improved_ocr_handler.dart';
-import 'mrz_result_class_fix.dart' hide DocumentType;
+import 'mrz_result_class_fix.dart';
 import 'mrz_util.dart';
 import 'name_validation_data_class.dart';
+
 import 'travel_doc_util.dart';
 import 'visa_util.dart';
 
@@ -77,51 +79,80 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
     return CameraKitOcrPlusView(
       controller: cameraKitPlusController,
       onTextRead: (c) {
+        if (widget.setting?.algorithm == ParseAlgorithm.method2) {
+          handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+        } else {
+          handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+        }
         // log(c.text);
         // processFrameLines(c,onFoundMrz);
-        handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+        // handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+        // MyOcrHandler.handle(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+        // handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
       },
     );
   }
 }
+
 //
 // /// General MRZ handler: tries passport (TD3) and visa (MRV-A/MRV-B),
 // /// picks the better-scoring parse, and calls [onFoundMrz] with OcrMrzResult.
 // /// General MRZ handler: tries ONE parser, and only if it fails, tries the other.
 // /// Set [tryPassportFirst] to control the order.
-// void handleOcr(
-//   OcrData ocr,
-//   void Function(OcrMrzResult res) onFoundMrz,
-//   OcrMrzSetting? setting,
-//   List<NameValidationData>? nameValidations,
-//   void Function(OcrMrzLog log)? mrzLogger,
-//   List<DocumentType> filterTypes, {
-//   bool tryPassportFirst = true,
-// }) {
-//   try {
-//     final s = setting ?? OcrMrzSetting();
-//     // log(ocr.text);
-//     Map<String, dynamic>? result;
-//     if (filterTypes.isEmpty || filterTypes.contains(DocumentType.passport)) {
-//       result = tryParseMrzFromOcrLines(ocr, s, nameValidations, mrzLogger);
-//     }
-//     if (filterTypes.isEmpty || filterTypes.contains(DocumentType.visa)) {
-//       result ??= tryParseVisaMrzFromOcrLines(ocr, s, nameValidations, mrzLogger);
-//     }
-//     if (filterTypes.isEmpty || filterTypes.contains(DocumentType.travelDocument1)) {
-//       result ??= tryParseTD1FromOcrLines(ocr, s, nameValidations, mrzLogger);
-//     }
-//     if (filterTypes.isEmpty || filterTypes.contains(DocumentType.travelDocument2)) {
-//       result ??= tryParseTD2FromOcrLines(ocr, s, nameValidations, mrzLogger);
-//     }
-//     if (result == null) return; // nothing parsed
-//
-//     final parsed = OcrMrzResult.fromJson(result);
-//     // log("✅ Valid ${parsed.isVisa ? 'Visa' : 'Passport'} MRZ (${parsed.mrzFormat.name}):");
-//     // log("\n${parsed.mrzLines.join("\n")}");
-//     onFoundMrz(parsed);
-//   } catch (e, st) {
-//     log(e.toString());
-//     log(st.toString());
-//   }
-// }
+void handleOcr(
+  OcrData ocr,
+  void Function(OcrMrzResult res) onFoundMrz,
+  OcrMrzSetting? setting,
+  List<NameValidationData>? nameValidations,
+  void Function(OcrMrzLog log)? mrzLogger,
+  List<DocumentType> filterTypes, {
+  bool tryPassportFirst = true,
+}) {
+  try {
+    final s = setting ?? OcrMrzSetting();
+    // log(ocr.text);
+    Map<String, dynamic>? result;
+    if (filterTypes.isEmpty || filterTypes.contains(DocumentType.passport)) {
+      result = tryParseMrzFromOcrLines(ocr, s, nameValidations, mrzLogger);
+    }
+    if (filterTypes.isEmpty || filterTypes.contains(DocumentType.visa)) {
+      result ??= tryParseVisaMrzFromOcrLines(ocr, s, nameValidations, mrzLogger);
+    }
+    if (filterTypes.isEmpty || filterTypes.contains(DocumentType.travelDocument1)) {
+      result ??= tryParseTD1FromOcrLines(ocr, s, nameValidations, mrzLogger);
+    }
+    if (filterTypes.isEmpty || filterTypes.contains(DocumentType.travelDocument2)) {
+      result ??= tryParseTD2FromOcrLines(ocr, s, nameValidations, mrzLogger);
+    }
+    if (result == null) return; // nothing parsed
+
+    final parsed = OcrMrzResult.fromJson(result);
+    // log("✅ Valid ${parsed.isVisa ? 'Visa' : 'Passport'} MRZ (${parsed.mrzFormat.name}):");
+    // log("\n${parsed.mrzLines.join("\n")}");
+    onFoundMrz(parsed);
+  } catch (e, st) {
+    log(e.toString());
+    log(st.toString());
+  }
+}
+
+void handleOcrNew(
+  OcrData ocr,
+  void Function(OcrMrzResult res) onFoundMrz,
+  OcrMrzSetting? setting,
+  List<NameValidationData>? nameValidations,
+  void Function(OcrMrzLog log)? mrzLogger,
+  List<DocumentType> filterTypes, {
+  bool tryPassportFirst = true,
+}) {
+  try {
+    final s = setting ?? OcrMrzSetting();
+    var result = MyOcrHandler.handle(ocr, mrzLogger);
+    if (result != null) {
+      onFoundMrz(result);
+    }
+  } catch (e, st) {
+    log(e.toString());
+    log(st.toString());
+  }
+}
