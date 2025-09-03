@@ -188,6 +188,7 @@ class MyOcrHandler {
         if (td3NationalityMatch != null) {
           final nationalityStr = fixAlphaOnlyField(td3NationalityMatch.group(1)!);
           // log("nationalityStr ${nationalityStr}");
+          nationality = nationalityStr;
           validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
         }else{
           // log("td3NationalityMatch no match");
@@ -232,6 +233,7 @@ class MyOcrHandler {
         final td2NationalityMatch = td2Nationality.firstMatch(secondLineFixed);
         if (td2NationalityMatch != null) {
           final nationalityStr = fixAlphaOnlyField(td2NationalityMatch.group(1)!);
+          nationality = nationalityStr;
           validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
           finalCheckValue += nationalityStr!;
         }

@@ -52,8 +52,10 @@ class OcrMrzResult {
   final MrzFormat format;
 
   // Convenience
-  bool get isVisa => documentType == 'V';
-  bool get isPassport => documentType == 'P';
+  // bool get isVisa => documentType == 'V';
+  bool get isVisa => documentCode.startsWith("V");
+  // bool get isPassport => documentType == 'P';
+  bool get isPassport => documentCode.startsWith("P");
   String get typeName {
     switch (format) {
       case MrzFormat.TD3:
