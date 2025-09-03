@@ -20,6 +20,10 @@ const validNationalityCodes = <String>[
   // ICAO special / legacy / organizational codes
   'BAH', // historic, used for Zimbabwe
   'D','D<<','D  ',   // legacy Germany
+  'I','I<<','I  ',   // legacy Germany
+  'F','F<<','F  ',   // legacy Germany
+  'A','A<<','A  ',   // legacy Germany
+  'CH','CH<','CH  ',   // legacy Germany
   'EUE', // European Union
   'UNA', // UN Specialized Agency
   'UNK', // UNMIK Kosovo
@@ -36,4 +40,8 @@ const validNationalityCodes = <String>[
   'XXC', // Refugee (other)
   'XXX', // Unspecified nationality
   'ZIM', // historic Zimbabwe (instead of ZWE)
+  'UK ', // historic Zimbabwe (instead of ZWE)
+  'UK<', // historic Zimbabwe (instead of ZWE)
+  'DSK', // historic Zimbabwe (instead of ZWE)
+  'SUN', // historic Zimbabwe (instead of ZWE)
 ];

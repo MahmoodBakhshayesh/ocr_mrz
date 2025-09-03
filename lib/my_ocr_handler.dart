@@ -61,7 +61,7 @@ DateTime? _parseMrzDate(String yymmdd) {
   final fullYear = year <= now + 10 ? 2000 + year : 1900 + year;
 
   try {
-    return DateTime(fullYear, month, day);
+    return DateTime.utc(fullYear, month, day);
   } catch (_) {
     return null;
   }
@@ -79,8 +79,77 @@ String fixAlphaOnlyField(String value) {
   return value.toUpperCase().split('').map((c) => map[c] ?? c).join();
 }
 
+String fixExceptionalCountry(String value) {
+  final map = {'D<<': 'DEU', 'D': 'DEU', 'D  ': 'DEU', 'BAH': 'ZWE', 'ZIM': 'ZWE', 'UK': 'GBR', 'UK<': 'GBR', 'UK ': 'GBR', 'SUN': 'RUS', 'GRE': 'GRC', 'CSK': 'CZE','I':'ITA','I<<':'ITA','I  ':'ITA','F  ':'FRA','F<<':'FRA','F':'FRA','A  ':'AUT','A<<':'AUT','A':'AUT','CH ':'CHE','CH<':'CHE','CH':'CHE',};
+  return value.toUpperCase().split('').map((c) => map[c] ?? c).join();
+}
+
+List<String> parseOldNumNat(String secondLineFixed) {
+  final List<String> result = [];
+  // 1) Extract MRZ doc number field and its check digit (positions 1–9 and 10)
+  final mrzDocField = secondLineFixed.substring(0, 9);   // [0..8]
+  final mrzDocCheck = secondLineFixed.substring(9, 10);  // [9]
+  final baseDocNumber = mrzDocField.replaceAll('<', '');
+
+  final docNumberValid = _computeMrzCheckDigit(mrzDocField) == mrzDocCheck;
+
+  // 2) Nationality (positions 11–13)
+  final nationalityField = secondLineFixed.substring(10, 13); // [10..12]
+  final nationality = fixAlphaOnlyField(nationalityField);
+  final nationalityValid = isValidMrzCountry(nationality);
+
+  // 3) Try to extend doc number from the Optional Data / Personal Number
+  //    field (positions 29–43 -> [28..42]). Position 44 ([43]) is its check digit.
+  final optionalData = secondLineFixed.substring(28, 43);
+
+  // Heuristic: if optional data starts with alphanumerics, treat the very first
+  // run (until first '<') as a continuation, up to 3 chars.
+  final contRaw = optionalData.split('<').first;
+  final contClean = contRaw.replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  final continuation = contClean.isEmpty ? '' : contClean.substring(0, contClean.length.clamp(0, 3));
+
+  // Build a "full" doc number (for UIs/DBs that want 9–12 chars).
+  // The MRZ check digit STILL only validates the 9-char MRZ field.
+  String fullDocNumber = (baseDocNumber + continuation);
+  if (fullDocNumber.length > 12) {
+    fullDocNumber = fullDocNumber.substring(0, 12);
+  }
+  // Ensure at least the base 9 remain
+  if (fullDocNumber.length < baseDocNumber.length) {
+    fullDocNumber = baseDocNumber;
+  }
+
+  // ---- Assign to your variables / validation state ----
+  final docNumber = fullDocNumber; // what you expose/use
+  final docNumberMrzField = baseDocNumber; // if you also want the 9-char as-is
+
+  // Example of how you were accumulating for the final composite check:
+  // (Keep using the MRZ field + its check digit for the composite per ICAO)
+  var finalCheckValue = '';
+  finalCheckValue += mrzDocField;  // NOT fullDocNumber
+  finalCheckValue += mrzDocCheck;
+
+  if(docNumberValid && nationalityValid){
+    result.add(fullDocNumber);
+    result.add(nationality);
+  }
+
+
+
+  // ... continue with birth, expiry, personal number, etc.
+
+  // Your existing flags:
+  // validation.docNumberValid = docNumberValid;
+  // validation.nationalityValid = nationalityValid;
+  return result;
+}
+
 class MyOcrHandler {
   static OcrMrzResult? handle(OcrData ocr, void Function(OcrMrzLog log)? mrzLogger) {
+
+    // secondLineFixed must be the full TD3 line 2 (length 44), already normalized (< padded).
+
+
     OcrMrzValidation validation = OcrMrzValidation();
 
     DocumentStandardType? type;
@@ -190,9 +259,23 @@ class MyOcrHandler {
           // log("nationalityStr ${nationalityStr}");
           nationality = nationalityStr;
           validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
-        }else{
+        } else {
           // log("td3NationalityMatch no match");
         }
+
+        if(!validation.docNumberValid){
+          final oldFixes = parseOldNumNat(secondLineFixed);
+          if(oldFixes.length == 2){
+            docNumber = oldFixes[0];
+            nationality = oldFixes[1];
+            validation.docNumberValid = true;
+            validation.nationalityValid = true;
+          }
+        }
+
+
+
+
 
         if (dateSexMatch != null) {
           finalCheckValue += stripSexFromDateSex(dateSexMatch.group(0)!);
@@ -317,7 +400,6 @@ class MyOcrHandler {
       log(validation.toString());
       log("-" * 100);
 
-
       OcrMrzResult result = OcrMrzResult(
         line1: firstLineFixed,
         line2: secondLineFixed,
@@ -325,12 +407,12 @@ class MyOcrHandler {
         documentCode: docCode,
         documentType: type.name.toUpperCase(),
         mrzFormat: format,
-        countryCode: countryCode,
-        issuingState: issuing,
+        countryCode: fixExceptionalCountry(countryCode),
+        issuingState: fixExceptionalCountry(issuing),
         lastName: lastName ?? '',
         firstName: firstName ?? '',
         documentNumber: docNumber ?? '',
-        nationality: nationality ?? '',
+        nationality: fixExceptionalCountry(nationality ?? ''),
         birthDate: birthDate,
         expiryDate: expiryDate,
         sex: sex ?? '',
