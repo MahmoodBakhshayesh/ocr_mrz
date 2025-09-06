@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'mrz_result_class_fix.dart';
 enum ParseAlgorithm {
   method1,
-  method2
+  method2,
+  method3,
 }
 @immutable
 class OcrMrzSetting {

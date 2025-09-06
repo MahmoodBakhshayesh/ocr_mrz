@@ -153,8 +153,8 @@ class OcrMrzResult {
       firstName: json["firstName"],
       documentNumber: docNo,
       nationality: json["nationality"],
-      birthDate: DateTime.tryParse(json["birthDate"] ?? ''),
-      expiryDate: DateTime.tryParse(json["expiryDate"] ?? ''),
+      birthDate:dateFromIsoIgnoreTime(json["birthDate"]) ,
+      expiryDate:dateFromIsoIgnoreTime(json["expiryDate"])  ,
       sex: json["sex"],
       personalNumber: personal,
       optionalData: opt,
@@ -189,8 +189,8 @@ class OcrMrzResult {
       "lastName": lastName,
       "firstName": firstName,
       "nationality": nationality,
-      "birthDate": birthDate?.toIso8601String(),
-      "expiryDate": expiryDate?.toIso8601String(),
+      "birthDate": dateAsUtcIso(birthDate),
+      "expiryDate": dateAsUtcIso(expiryDate),
       "sex": sex,
       // Mirror both ways to keep old consumers happy
       "personalNumber": personalNumber.isNotEmpty ? personalNumber : optionalData,
@@ -341,4 +341,21 @@ class OcrMrzValidation {
         "Name ${nameValid ? '✅' : '❌'} "
         "$finalLabel";
   }
+}
+
+
+/// Write as UTC midnight ISO (e.g. 2025-09-06T00:00:00.000Z)
+String? dateAsUtcIso(DateTime? d) {
+  if(d == null) return null;
+  return DateTime.utc(d.year, d.month, d.day).toIso8601String();
+}
+
+/// Read from ISO but keep only the calendar parts (avoid TZ shifts)
+DateTime? dateFromIsoIgnoreTime(String? iso) {
+  if(iso == null){
+    return null;
+  }
+  final dt = DateTime.parse(iso);       // may be UTC or local depending on 'Z'
+  final utc = dt.toUtc();               // normalize to UTC
+  return DateTime(utc.year, utc.month, utc.day); // local date with same Y/M/D
 }

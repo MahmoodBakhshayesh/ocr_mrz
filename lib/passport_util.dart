@@ -124,8 +124,11 @@ Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? se
       return null;
     }
 
+    // log("----");
+
 
     if(validation.linesLengthValid){
+      // log("----1");
       // log("\n$oldLine1\n$oldLine2\n${"-"*50}\n$line1\n$line2\n$validation\n${passportNumber} - ${birthDate} - ${expiryDate} - ${personalNumber}  - ${countryCode} - ${nationality} - ${firstName} ${lastName}");
       // log(validation.toString());
     }
@@ -133,46 +136,56 @@ Map<String, dynamic>? tryParseMrzFromOcrLines(OcrData ocrData, OcrMrzSetting? se
 
     if (validateSettings.validateNames && !validation.nameValid) {
       // log("$line1\n$line2");
+      // log("----2");
       return null;
     }
     if (validateSettings.validateBirthDateValid && !validation.birthDateValid) {
       // log("$line1\n$line2");
+      // log("----3");
       return null;
     }
     if (validateSettings.validateDocNumberValid && !validation.docNumberValid) {
       // log("$line1\n$line2");
+      // log("----4");
       return null;
     }
     if (validateSettings.validateExpiryDateValid && !validation.expiryDateValid) {
       // log("$line1\n$line2");
+      // log("----5");
       return null;
     }
     if (validateSettings.validateFinalCheckValid && !validation.finalCheckValid) {
+      // log("----6");
       // log("$line1\n$line2");
       return null;
     }
     if (validateSettings.validateLinesLength && !validation.linesLengthValid) {
       // log("$line1\n$line2");
+      // log("----7");
       return null;
     }
     if (validateSettings.validatePersonalNumberValid && !validation.personalNumberValid) {
       // log("$line1\n$line2");
+      // log("----7");
       // log("Personal number is ${personalNumber}");
       return null;
     }
     if (validateSettings.validateCountry && !validation.countryValid) {
       // log("$line1\n$line2");
+      // log("----8");
       return null;
     }
     if (validateSettings.validateNationality && !validation.nationalityValid) {
       // log("$line1\n$line2");
+      // log("----1");
       return null;
     }
 
 
 
     return resultMap;
-  } catch (_) {
+  } catch (e) {
+    log("${e}");
     return null;
   }
 }
