@@ -6,8 +6,6 @@ import 'package:ocr_mrz/mrz_result_class_fix.dart';
 import 'package:ocr_mrz/travel_doc_util.dart';
 
 import 'my_name_handler.dart';
-import 'name_validation_data_class.dart';
-import 'ocr_mrz_settings_class.dart';
 import 'orc_mrz_log_class.dart';
 
 enum DocumentStandardType { td1, td2, td3 }
