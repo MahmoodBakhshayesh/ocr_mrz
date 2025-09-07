@@ -38,6 +38,7 @@ class OcrMrzResult {
   String nationality;
   DateTime? birthDate;
   DateTime? expiryDate;
+  DateTime? issueDate;
   String sex;
 
   /// Passport’s optional/personal number (TD3). For visas this will mirror [optionalData].
@@ -84,6 +85,7 @@ class OcrMrzResult {
     required this.mrzFormat,
     required this.countryCode,
     required this.issuingState,
+    this.issueDate,
     required this.lastName,
     required this.firstName,
     required this.documentNumber,
@@ -155,6 +157,7 @@ class OcrMrzResult {
       nationality: json["nationality"],
       birthDate:dateFromIsoIgnoreTime(json["birthDate"]) ,
       expiryDate:dateFromIsoIgnoreTime(json["expiryDate"])  ,
+      issueDate:dateFromIsoIgnoreTime(json["issueDate"])  ,
       sex: json["sex"],
       personalNumber: personal,
       optionalData: opt,
@@ -191,6 +194,7 @@ class OcrMrzResult {
       "nationality": nationality,
       "birthDate": dateAsUtcIso(birthDate),
       "expiryDate": dateAsUtcIso(expiryDate),
+      "issueDate": dateAsUtcIso(issueDate),
       "sex": sex,
       // Mirror both ways to keep old consumers happy
       "personalNumber": personalNumber.isNotEmpty ? personalNumber : optionalData,

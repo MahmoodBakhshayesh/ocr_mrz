@@ -45,6 +45,7 @@ class _MyHomePageState extends State<MyHomePage> {
     validateExpiryDateValid: true,
     validateDocNumberValid: false,
     validateNames: true,
+    algorithm: ParseAlgorithm.method3
   );
   int logCount = 0;
   OcrMrzLog? lastLog;

@@ -50,8 +50,9 @@ class OcrMrzReader extends StatefulWidget {
   final OcrMrzSetting? setting;
   final OcrMrzController? controller;
   final List<NameValidationData>? nameValidations;
+  final bool showFrame;
 
-  const OcrMrzReader({super.key, required this.onFoundMrz, this.setting, this.nameValidations, this.mrzLogger, this.filterTypes = const [], this.controller});
+  const OcrMrzReader({super.key, required this.onFoundMrz, this.setting, this.nameValidations, this.mrzLogger, this.filterTypes = const [], this.controller,this.showFrame = true});
 
   @override
   State<OcrMrzReader> createState() => _OcrMrzReaderState();
@@ -94,24 +95,41 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
 
   @override
   Widget build(BuildContext context) {
-    return CameraKitOcrPlusView(
-      controller: cameraKitPlusController,
-      onTextRead: (c) {
-        // MyOcrHandlerNew.handle(c, null);
-        if (widget.setting?.algorithm == ParseAlgorithm.method2) {
-          handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-        } else if(widget.setting?.algorithm == ParseAlgorithm.method3){
-          handleOcr3(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-        }else{
-          handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-        }
+    double width=  MediaQuery.of(context).size.width * 0.9;
+    return Stack(
+      children: [
+        CameraKitOcrPlusView(
+          controller: cameraKitPlusController,
+          onTextRead: (c) {
+            // MyOcrHandlerNew.handle(c, null);
+            if (widget.setting?.algorithm == ParseAlgorithm.method2) {
+              handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+            } else if(widget.setting?.algorithm == ParseAlgorithm.method3){
+              handleOcr3(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+            }else{
+              handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+            }
 
-        // log(c.text);
-        // processFrameLines(c,onFoundMrz);
-        // handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-        // MyOcrHandler.handle(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-        // handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-      },
+            // log(c.text);
+            // processFrameLines(c,onFoundMrz);
+            // handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+            // MyOcrHandler.handle(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+            // handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+          },
+        ),
+        !widget.showFrame?SizedBox():Align(
+          alignment: Alignment.center,
+          child: SizedBox(
+            width:width,
+            height: width*0.7,
+            child: Image.asset(
+              "assets/images/scanner_frame.png",package: 'ocr_mrz',
+              fit: BoxFit.fill,
+            ),
+          ),
+        )
+
+      ],
     );
   }
 }

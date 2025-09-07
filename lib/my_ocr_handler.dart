@@ -5,6 +5,7 @@ import 'package:ocr_mrz/doc_code_validator.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart';
 import 'package:ocr_mrz/travel_doc_util.dart';
 
+import 'issue_date_guess.dart';
 import 'my_name_handler.dart';
 import 'orc_mrz_log_class.dart';
 
@@ -147,6 +148,10 @@ List<String> parseOldNumNat(String secondLineFixed) {
   // validation.nationalityValid = nationalityValid;
   return result;
 }
+final issueDateYYMMDD = RegExp(
+  r'(?<!\d)(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)',
+  caseSensitive: false,
+);
 
 class MyOcrHandler {
   static OcrMrzResult? handle(OcrData ocr, void Function(OcrMrzLog log)? mrzLogger) {
@@ -219,6 +224,8 @@ class MyOcrHandler {
       validation.linesLengthValid = true;
 
       final firstLineFixed = fixedMrzLines.first;
+      final secondLineFixed = fixedMrzLines[1];
+      final thirdLineFixed = fixedMrzLines.length>2?fixedMrzLines[2]:null;
       docCode = firstLineFixed.substring(0, 2);
       countryCode = firstLineFixed.substring(2, 5);
       issuing = firstLineFixed.substring(2, 5);
@@ -230,7 +237,6 @@ class MyOcrHandler {
         log("country ${countryCode} is no valid");
       }
 
-      final secondLineFixed = fixedMrzLines[1];
       final mrzDatesSex = RegExp(r'(\d{6})(\d)([MFX<])(\d{6})(\d)', caseSensitive: false);
       final dateSexMatch = mrzDatesSex.firstMatch(secondLineFixed);
       if (dateSexMatch != null) {
@@ -302,6 +308,14 @@ class MyOcrHandler {
           validation.personalNumberValid = true;
           validation.hasFinalCheck = true;
           validation.finalCheckValid = _computeMrzCheckDigit(finalCheckValue) == finalCheckStr;
+
+          final issueDateMatch = issueDateYYMMDD.firstMatch(optionalStr??'');
+          if (issueDateMatch != null) {
+            final issueDateStr = issueDateMatch.group(0); // "220620"
+            issueDate = _parseMrzDate(issueDateStr!);
+          }
+
+
         }
 
         name = parseNamesTd3OrTd2(firstLineFixed);
@@ -352,6 +366,13 @@ class MyOcrHandler {
             validation.personalNumberValid = true; // treat optional as personal no.
             validation.hasFinalCheck = true;
             validation.finalCheckValid = _computeMrzCheckDigit(finalCheckValue) == finalCheckStr;
+
+            final issueDateMatch = issueDateYYMMDD.firstMatch(optionalStr??'');
+            if (issueDateMatch != null) {
+              final issueDateStr = issueDateMatch.group(0); // "220620"
+              issueDate = _parseMrzDate(issueDateStr!);
+            }
+
           }
         }
 
@@ -390,6 +411,22 @@ class MyOcrHandler {
           final natMatch = RegExp(r'^.{15}([A-Z<]{3})', caseSensitive: false).firstMatch(secondLineFixed);
           final nationalityForFinal = natMatch?.group(1) ?? '';
 
+
+          final issueDateMatch = issueDateYYMMDD.firstMatch(optionalStr??'');
+          if (issueDateMatch != null) {
+            final issueDateStr = issueDateMatch.group(0); // "220620"
+            issueDate = _parseMrzDate(issueDateStr!);
+          }
+
+          // final issueDateRegex = RegExp(r'(\d{6})(\d)', caseSensitive: false);
+          // final issueDateMatch = issueDateRegex.firstMatch(optionalStr??'');
+          // if(issueDateMatch != null){
+          //   issueDate = _parseMrzDate(issueDateMatch.group(0)!);
+          // }else{
+          //   log("not issue date Found in ${optionalStr}");
+          // }
+
+
           finalCheckValue += (optionalStr ?? ''); // positions 18..28
           validation.personalNumberValid = true;
           validation.hasFinalCheck = true;
@@ -405,8 +442,22 @@ class MyOcrHandler {
         validation.nameValid = name.validateNames(otherLines);
       }
 
+
+      // final guess = guessIssueDate(
+      //   type: DocumentStandardType.td3,  // or td1/td2
+      //   line1: firstLineFixed,
+      //   line2: secondLineFixed,
+      //   line3: thirdLineFixed,
+      //   isVisaMRVB: firstLineFixed.startsWith('V'),
+      //   birthYYMMDD: '',
+      //   expiryYYMMDD: '',
+      // );
+
+
       log(validation.toString());
       log("-" * 100);
+
+
 
       OcrMrzResult result = OcrMrzResult(
         line1: firstLineFixed,
@@ -415,11 +466,12 @@ class MyOcrHandler {
         documentCode: docCode,
         documentType: type.name.toUpperCase(),
         mrzFormat: format,
+        issueDate: issueDate,
         countryCode: fixExceptionalCountry(countryCode),
         issuingState: fixExceptionalCountry(issuing),
         lastName: lastName ?? '',
         firstName: firstName ?? '',
-        documentNumber: docNumber ?? '',
+        documentNumber: docNumber?.replaceAll("<", "") ?? '',
         nationality: fixExceptionalCountry(nationality ?? ''),
         birthDate: birthDate,
         expiryDate: expiryDate,

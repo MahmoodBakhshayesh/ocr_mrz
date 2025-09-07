@@ -37,7 +37,7 @@ class OcrMrzSetting {
     this.validateNationality = true,
     this.rotation = 0,
     this.macro = false,
-    this.algorithm = ParseAlgorithm.method1,
+    this.algorithm = ParseAlgorithm.method3,
   });
 
   OcrMrzSetting copyWith({

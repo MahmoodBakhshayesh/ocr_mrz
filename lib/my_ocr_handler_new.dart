@@ -525,7 +525,7 @@ class MyOcrHandlerNew {
       issuingState: fixExceptionalCountry(issuing),
       lastName: lastName ?? '',
       firstName: firstName ?? '',
-      documentNumber: docNumber ?? '',
+      documentNumber:  docNumber?.replaceAll("<", "") ?? '',
       nationality: fixExceptionalCountry(nationality ?? ''),
       birthDate: birthDate,
       expiryDate: expiryDate,
