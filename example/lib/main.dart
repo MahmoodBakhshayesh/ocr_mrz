@@ -254,10 +254,11 @@ class _MyHomePageState extends State<MyHomePage> {
                         if (a.matchSetting(setting)) {
                           showFoundPassport(a);
                         } else {
-                          log("res does not match setting");
+                          // log("res does not match setting");
+                          // log(jsonEncode(a.valid.toJson()));
                         }
                       }
-                      log("✅ ${a.documentType} matched:");
+                      // log("✅ ${a.documentType} matched:");
                     },
                     mrzLogger: (l) {
                       if (l.rawMrzLines.isNotEmpty && l.fixedMrzLines.join().trim().isNotEmpty) {

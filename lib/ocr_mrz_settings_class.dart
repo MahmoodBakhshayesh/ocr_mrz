@@ -7,6 +7,22 @@ enum ParseAlgorithm {
   method1,
   method2,
   method3,
+  method4;
+
+  @override
+  toString(){
+    switch(this){
+
+      case ParseAlgorithm.method1:
+        return "1";
+      case ParseAlgorithm.method2:
+        return "2";
+      case ParseAlgorithm.method3:
+        return "3";
+      case ParseAlgorithm.method4:
+        return "4";
+    }
+  }
 }
 @immutable
 class OcrMrzSetting {

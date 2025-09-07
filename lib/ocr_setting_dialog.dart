@@ -183,7 +183,7 @@ class _OcrSettingDialogState extends State<OcrSettingDialog> {
                     Expanded(
                       child: CupertinoSegmentedControl<ParseAlgorithm>(
                         groupValue: tmp.algorithm,
-                        children: Map.fromIterable(ParseAlgorithm.values,key: (a)=>a,value:(a)=>Row(children: [Padding(padding: EdgeInsets.symmetric(horizontal: 2), child: Text("${(a as ParseAlgorithm).name}"))]),),
+                        children: Map.fromIterable(ParseAlgorithm.values,key: (a)=>a,value:(a)=>Row(children: [Padding(padding: EdgeInsets.symmetric(horizontal: 2), child: Text("${(a as ParseAlgorithm).toString()}"))]),),
                         onValueChanged: (a) {
                           tmp = tmp.copyWith(algorithm: a);
                           setState(() {});

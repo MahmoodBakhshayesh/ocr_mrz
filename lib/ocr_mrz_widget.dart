@@ -25,22 +25,22 @@ class OcrMrzController extends CameraKitPlusController {
     changeFlashMode(CameraKitPlusFlashMode.on);
   }
 
-  debug(String s,ParseAlgorithm alg, void Function(OcrMrzResult res) onFoundMrz){
-    final ocr = OcrData(text: s, lines: s.split("\n").map((oc)=>OcrLine(text: oc, cornerPoints: [])).toList());
-    switch(alg){
+  debug(String s, ParseAlgorithm alg, void Function(OcrMrzResult res) onFoundMrz) {
+    final ocr = OcrData(text: s, lines: s.split("\n").map((oc) => OcrLine(text: oc, cornerPoints: [])).toList());
+    switch (alg) {
       case ParseAlgorithm.method1:
-        handleOcrNew(ocr,onFoundMrz, OcrMrzSetting(), [], null, []);
+        handleOcrNew(ocr, onFoundMrz, OcrMrzSetting(), [], null, []);
         return;
       case ParseAlgorithm.method2:
         // log("hande ocr");
-        handleOcr(ocr,onFoundMrz, OcrMrzSetting(), [], null, []);
+        handleOcr(ocr, onFoundMrz, OcrMrzSetting(), [], null, []);
       case ParseAlgorithm.method3:
         // log("hande ocr");
-        handleOcr3(ocr,onFoundMrz, OcrMrzSetting(), [], null, []);
+        handleOcr3(ocr, onFoundMrz, OcrMrzSetting(), [], null, []);
+      case ParseAlgorithm.method4:
+        handleOcr3(ocr, onFoundMrz, OcrMrzSetting(), [], null, []);
     }
   }
-
-
 }
 
 class OcrMrzReader extends StatefulWidget {
@@ -51,8 +51,9 @@ class OcrMrzReader extends StatefulWidget {
   final OcrMrzController? controller;
   final List<NameValidationData>? nameValidations;
   final bool showFrame;
+  final bool showZoom;
 
-  const OcrMrzReader({super.key, required this.onFoundMrz, this.setting, this.nameValidations, this.mrzLogger, this.filterTypes = const [], this.controller,this.showFrame = true});
+  const OcrMrzReader({super.key, required this.onFoundMrz, this.setting, this.nameValidations, this.mrzLogger, this.filterTypes = const [], this.controller, this.showFrame = true, this.showZoom = true});
 
   @override
   State<OcrMrzReader> createState() => _OcrMrzReaderState();
@@ -60,6 +61,7 @@ class OcrMrzReader extends StatefulWidget {
 
 class _OcrMrzReaderState extends State<OcrMrzReader> {
   late OcrMrzController cameraKitPlusController = widget.controller ?? OcrMrzController();
+  double zoom = 1.0;
 
   @override
   void initState() {
@@ -95,7 +97,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
 
   @override
   Widget build(BuildContext context) {
-    double width=  MediaQuery.of(context).size.width * 0.9;
+    double width = MediaQuery.of(context).size.width * 0.9;
     return Stack(
       children: [
         CameraKitOcrPlusView(
@@ -104,9 +106,9 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
             // MyOcrHandlerNew.handle(c, null);
             if (widget.setting?.algorithm == ParseAlgorithm.method2) {
               handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-            } else if(widget.setting?.algorithm == ParseAlgorithm.method3){
+            } else if (widget.setting?.algorithm == ParseAlgorithm.method3) {
               handleOcr3(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-            }else{
+            } else {
               handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
             }
 
@@ -117,18 +119,32 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
             // handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
           },
         ),
-        !widget.showFrame?SizedBox():Align(
-          alignment: Alignment.center,
-          child: SizedBox(
-            width:width,
-            height: width*0.7,
-            child: Image.asset(
-              "assets/images/scanner_frame.png",package: 'ocr_mrz',
-              fit: BoxFit.fill,
+        !widget.showFrame
+            ? SizedBox()
+            : IgnorePointer(child: Align(alignment: Alignment.center, child: SizedBox(width: width, height: width * 0.7, child: Image.asset("assets/images/scanner_frame.png", package: 'ocr_mrz', fit: BoxFit.fill)))),
+        !widget.showZoom
+            ? SizedBox()
+            : IgnorePointer(
+              ignoring: false,
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  width: width,
+                  height: 40,
+                  margin: EdgeInsets.only(bottom: 12),
+                  child: Slider(
+                    min: 0.5,
+                    max: 3,
+                    value: zoom,
+                    onChanged: (a) {
+                      zoom = a;
+                      setState(() {});
+                      cameraKitPlusController.setZoom(a);
+                    },
+                  ),
+                ),
+              ),
             ),
-          ),
-        )
-
       ],
     );
   }
@@ -200,6 +216,7 @@ void handleOcrNew(
     log(st.toString());
   }
 }
+
 void handleOcr3(
   OcrData ocr,
   void Function(OcrMrzResult res) onFoundMrz,
