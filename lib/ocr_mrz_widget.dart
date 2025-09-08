@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:developer';
-
 import 'package:camera_kit_plus/camera_kit_plus_controller.dart';
 import 'package:camera_kit_plus/enums.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +10,8 @@ import 'package:ocr_mrz/my_ocr_handler_new.dart';
 import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 import 'package:ocr_mrz/orc_mrz_log_class.dart';
 import 'package:ocr_mrz/passport_util.dart';
+import 'package:ocr_mrz/session_ocr_handler.dart';
+import 'package:ocr_mrz/session_status_class.dart';
 
 import 'improved_ocr_handler.dart';
 import 'mrz_result_class_fix.dart';
@@ -19,10 +20,29 @@ import 'name_validation_data_class.dart';
 
 import 'travel_doc_util.dart';
 import 'visa_util.dart';
+export 'session_log_history_list_dialog.dart';
 
 class OcrMrzController extends CameraKitPlusController {
+  ValueNotifier<List<SessionStatus>> _sessionHistory = ValueNotifier<List<SessionStatus>>([SessionStatus.start()]);
+
+  // List<SessionStatus> _sessionHistory = [SessionStatus.start()];
+
   flashOn() {
     changeFlashMode(CameraKitPlusFlashMode.on);
+  }
+
+  resetSession() {
+    _sessionHistory.value = [SessionStatus.start()];
+  }
+
+  ValueNotifier<List<SessionStatus>> get getSessionHistory => _sessionHistory;
+
+  void setSessionHistory(List<SessionStatus> sh) {
+    _sessionHistory.value = [...sh];
+  }
+
+  void addSessionHistory(SessionStatus s) {
+    _sessionHistory.value = [..._sessionHistory.value, s];
   }
 
   debug(String s, ParseAlgorithm alg, void Function(OcrMrzResult res) onFoundMrz) {
@@ -37,8 +57,6 @@ class OcrMrzController extends CameraKitPlusController {
       case ParseAlgorithm.method3:
         // log("hande ocr");
         handleOcr3(ocr, onFoundMrz, OcrMrzSetting(), [], null, []);
-      case ParseAlgorithm.method4:
-        handleOcr3(ocr, onFoundMrz, OcrMrzSetting(), [], null, []);
     }
   }
 }
@@ -46,6 +64,7 @@ class OcrMrzController extends CameraKitPlusController {
 class OcrMrzReader extends StatefulWidget {
   final void Function(OcrMrzResult res) onFoundMrz;
   final void Function(OcrMrzLog log)? mrzLogger;
+  final void Function(List<SessionStatus> sessionList)? onSessionChange;
   final List<DocumentType> filterTypes;
   final OcrMrzSetting? setting;
   final OcrMrzController? controller;
@@ -53,7 +72,7 @@ class OcrMrzReader extends StatefulWidget {
   final bool showFrame;
   final bool showZoom;
 
-  const OcrMrzReader({super.key, required this.onFoundMrz, this.setting, this.nameValidations, this.mrzLogger, this.filterTypes = const [], this.controller, this.showFrame = true, this.showZoom = true});
+  const OcrMrzReader({super.key, required this.onFoundMrz, this.setting, this.nameValidations, this.mrzLogger, this.filterTypes = const [], this.controller, this.showFrame = true, this.showZoom = true, this.onSessionChange});
 
   @override
   State<OcrMrzReader> createState() => _OcrMrzReaderState();
@@ -61,7 +80,10 @@ class OcrMrzReader extends StatefulWidget {
 
 class _OcrMrzReaderState extends State<OcrMrzReader> {
   late OcrMrzController cameraKitPlusController = widget.controller ?? OcrMrzController();
+  // late OcrMrzSetting setting = widget.setting ?? OcrMrzSetting();
   double zoom = 1.0;
+
+  SessionStatus session = SessionStatus.start();
 
   @override
   void initState() {
@@ -98,25 +120,51 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
   @override
   Widget build(BuildContext context) {
     double width = MediaQuery.of(context).size.width * 0.9;
+    // log(setting.algorithm.toString());
+    // log("here ${setting.algorithm.toString() == ParseAlgorithm.method2.toString()}");
+    // log("here ${ParseAlgorithm.method2.toString()}");
+    // log("here ${setting.algorithm.toString()}");
     return Stack(
       children: [
         CameraKitOcrPlusView(
           controller: cameraKitPlusController,
           onTextRead: (c) {
-            // MyOcrHandlerNew.handle(c, null);
-            if (widget.setting?.algorithm == ParseAlgorithm.method2) {
-              handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-            } else if (widget.setting?.algorithm == ParseAlgorithm.method3) {
-              handleOcr3(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-            } else {
+
+            if(widget.setting?.algorithm == ParseAlgorithm.method1){
               handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+            }else if(widget.setting?.algorithm == ParseAlgorithm.method2){
+
+              final newSess = SessionOcrHandler().handleSession(cameraKitPlusController.getSessionHistory.value.last, c);
+              widget.mrzLogger?.call(newSess.getLog);
+
+              session = newSess;
+              if (newSess.logDetails != cameraKitPlusController.getSessionHistory.value.last.logDetails && !cameraKitPlusController.getSessionHistory.value.last.getOcrResult.matchSetting(widget.setting ?? OcrMrzSetting())) {
+                // if (!cameraKitPlusController.getSessionHistory.last.getOcrResult.matchSetting(widget.setting ?? OcrMrzSetting())) {
+                // log("should add new session");
+
+                // cameraKitPlusController.sessionHistory.add(newSess);
+                cameraKitPlusController.addSessionHistory(newSess);
+                widget.onSessionChange?.call(cameraKitPlusController.getSessionHistory.value);
+                // if (newSess.getOcrResult.matchSetting(widget.setting ?? OcrMrzSetting())) {
+                widget.onFoundMrz(newSess.getOcrResult);
+                // }
+              }else{
+                widget.onFoundMrz(newSess.getOcrResult);
+              }
+              setState(() {});
+            }else if(widget.setting?.algorithm == ParseAlgorithm.method3){
+              OcrMrzLog log = OcrMrzLog(rawText: c.text, rawMrzLines: c.lines.where((a)=>a.text.contains("<")).map((a)=>a.text).toList(), fixedMrzLines: [], validation: OcrMrzValidation(), extractedData: {});
+              widget.mrzLogger?.call(log);
             }
 
-            // log(c.text);
-            // processFrameLines(c,onFoundMrz);
-            // handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-            // MyOcrHandler.handle(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-            // handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+
+            // if (widget.setting?.algorithm == ParseAlgorithm.method2) {
+            //   handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+            // } else if (widget.setting?.algorithm == ParseAlgorithm.method3) {
+            //   handleOcr3(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+            // } else {
+            //   handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+            // }
           },
         ),
         !widget.showFrame
@@ -133,8 +181,8 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
                   height: 40,
                   margin: EdgeInsets.only(bottom: 12),
                   child: Slider(
-                    min: 0.5,
-                    max: 3,
+                    min: 1,
+                    max: 4,
                     value: zoom,
                     onChanged: (a) {
                       zoom = a;
@@ -145,6 +193,20 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
                 ),
               ),
             ),
+        IgnorePointer(
+          ignoring: false,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: GestureDetector(
+              onTap: () {
+                session = SessionStatus.start();
+                cameraKitPlusController._sessionHistory.value = [SessionStatus.start()];
+                setState(() {});
+              },
+              child: Container(color: Colors.white, width: width, child: Text(cameraKitPlusController.getSessionHistory.value.last.toString())),
+            ),
+          ),
+        ),
       ],
     );
   }

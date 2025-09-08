@@ -335,15 +335,15 @@ class OcrMrzValidation {
     final finalLabel = hasFinalCheck
         ? "Final ${finalCheckValid ? '✅' : '❌'}"
         : "Final N/A";
-    return "Number ${docNumberValid ? '✅' : '❌'} "
+    return "Num ${docNumberValid ? '✅' : '❌'} "
         "Code ${docCodeValid ? '✅' : '❌'} "
-        "Birth ${birthDateValid ? '✅' : '❌'} "
-        "Expiry ${expiryDateValid ? '✅' : '❌'} "
-        "Personal ${personalNumberValid ? '✅' : '❌'}  "
-        "Country ${countryValid ? '✅' : '❌'} "
-        "Nationality ${nationalityValid ? '✅' : '❌'} "
-        "Name ${nameValid ? '✅' : '❌'} "
-        "$finalLabel";
+        "Bth ${birthDateValid ? '✅' : '❌'} "
+        "Exp ${expiryDateValid ? '✅' : '❌'} "
+        // "Personal ${personalNumberValid ? '✅' : '❌'}  "
+        "Iss ${countryValid ? '✅' : '❌'} "
+        "Nat ${nationalityValid ? '✅' : '❌'} ";
+        // "Name ${nameValid ? '✅' : '❌'} "
+        // "$finalLabel";
   }
 }
 

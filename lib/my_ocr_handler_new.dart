@@ -175,6 +175,7 @@ class MyOcrHandlerNew {
     // secondLineFixed must be the full TD3 line 2 (length 44), already normalized (< padded).
 
     final _dateSexRe = RegExp(r'(\d{6})(\d)([MFX])(\d{6})(\d)', caseSensitive: false);
+
     final _td23Lead = RegExp(r'^[A-Z0-9<]{9}\d[A-Z<]{3}$'); // used on a 13-char slice from start
 
     String _normLine(String s) => s.toUpperCase().replaceAll(' ', '<').replaceAll(RegExp(r'[^A-Z0-9<\r\n]'), '<').trim();

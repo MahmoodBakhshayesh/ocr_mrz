@@ -160,7 +160,6 @@ class MyOcrHandler {
 
 
     OcrMrzValidation validation = OcrMrzValidation();
-
     DocumentStandardType? type;
     MrzFormat? format;
     String? docNumber;

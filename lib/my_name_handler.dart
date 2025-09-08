@@ -1,3 +1,7 @@
+import 'dart:developer';
+
+import 'my_ocr_handler.dart';
+
 List<String> extractWords(String text) {
   final wordRegExp = RegExp(r'\b\w+\b');
   return wordRegExp.allMatches(text).map((match) => match.group(0)!).toList();
@@ -16,6 +20,7 @@ class MrzName {
   String get lastName => surname;
 
   bool validateNames(Iterable<String> lines) {
+    // log("validate name ${firstName} and ${lastName} in\n ${lines.join("\n")}");
     List<String> words = [];
     for (var l in lines) {
       words.addAll(extractWords(l).map((a) => a.toLowerCase()));
@@ -65,8 +70,6 @@ MrzName parseNamesTd1(String line3) {
   return _parseNamesField(line3);
 }
 
-/// Unified helper if you already know the type and have all lines.
-enum DocumentStandardType { td1, td2, td3 }
 
 MrzName parseMrzNames(DocumentStandardType type, List<String> lines) {
   switch (type) {
