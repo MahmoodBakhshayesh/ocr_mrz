@@ -25,6 +25,7 @@ const validNationalityCodes = <String>[
   'A','A<<','A  ',   // legacy Germany
   'CH','CH<','CH  ',   // legacy Germany
   'EUE', // European Union
+  'RKS', // Republic of kosovo
   'UNA', // UN Specialized Agency
   'UNK', // UNMIK Kosovo
   'UNO', // United Nations
