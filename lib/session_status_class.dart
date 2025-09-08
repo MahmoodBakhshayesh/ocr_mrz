@@ -116,7 +116,7 @@ class SessionStatus {
     step: step ?? this.step,
     details: details ?? this.details,
     ocr: ocr ?? this.ocr,
-    validation: validation ?? this.validation,
+    validation: OcrMrzValidation.fromJson((validation ?? this.validation??OcrMrzValidation()).toJson()),
     type: type ?? this.type,
     format: format ?? this.format,
     docNumber: docNumber ?? this.docNumber,

@@ -22,7 +22,7 @@ class SessionOcrHandler {
       if (updatedSession.step == 0) {
         updatedSession = updatedSession.copyWith(step: 1, dateTime: DateTime.now(), details: "Looking for BirthGenderExp", ocr: ocr);
       }
-      log("handleSession ${updatedSession.step}");
+      // log("handleSession ${updatedSession.step}");
       if (updatedSession.step == 1) {
         String secondLineGuess = lines.firstWhere((a) => _dateSexRe.hasMatch(a), orElse: () => '');
         if (secondLineGuess.isNotEmpty) {
@@ -150,6 +150,7 @@ class SessionOcrHandler {
                   numberStr = firstLineGuess.substring(5, 14);
                   final numberStrCheck = firstLineGuess[14];
                   bool validDocNumber = _computeMrzCheckDigit(numberStr) == numberStrCheck;
+
 
                   currentVal.countryValid = validCountry;
                   currentVal.docCodeValid = validCode;
