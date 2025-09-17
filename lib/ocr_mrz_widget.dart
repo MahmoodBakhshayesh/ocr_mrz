@@ -127,6 +127,8 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
     return Stack(
       children: [
         CameraKitOcrPlusView(
+          showFrame: widget.showFrame,
+          showZoomSlider: widget.showZoom,
           controller: cameraKitPlusController,
           onTextRead: (c) {
 
@@ -136,6 +138,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
 
               final newSess = SessionOcrHandler().handleSession(cameraKitPlusController.getSessionHistory.value.last, c);
               widget.mrzLogger?.call(newSess.getLog);
+              // log(newSess.nationality??'-');
 
               session = newSess;
               if (newSess.logDetails != cameraKitPlusController.getSessionHistory.value.last.logDetails && !cameraKitPlusController.getSessionHistory.value.last.getOcrResult.matchSetting(widget.setting ?? OcrMrzSetting())) {
@@ -167,46 +170,46 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
             // }
           },
         ),
-        !widget.showFrame
-            ? SizedBox()
-            : IgnorePointer(child: Align(alignment: Alignment.center, child: SizedBox(width: width, height: width * 0.7, child: Image.asset("assets/images/scanner_frame.png", package: 'ocr_mrz', fit: BoxFit.fill)))),
-        !widget.showZoom
-            ? SizedBox()
-            : IgnorePointer(
-              ignoring: false,
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  width: width,
-                  height: 40,
-                  margin: EdgeInsets.only(bottom: 12),
-                  child: Slider(
-                    min: 1,
-                    max: 4,
-                    value: zoom,
-                    onChanged: (a) {
-                      zoom = a;
-                      setState(() {});
-                      cameraKitPlusController.setZoom(a);
-                    },
-                  ),
-                ),
-              ),
-            ),
-        IgnorePointer(
-          ignoring: false,
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: GestureDetector(
-              onTap: () {
-                session = SessionStatus.start();
-                cameraKitPlusController._sessionHistory.value = [SessionStatus.start()];
-                setState(() {});
-              },
-              child: Container(color: Colors.white, width: width, child: Text(cameraKitPlusController.getSessionHistory.value.last.toString())),
-            ),
-          ),
-        ),
+        // !widget.showFrame
+        //     ? SizedBox()
+        //     : IgnorePointer(child: Align(alignment: Alignment.center, child: SizedBox(width: width, height: width * 0.7, child: Image.asset("assets/images/scanner_frame.png", package: 'ocr_mrz', fit: BoxFit.fill)))),
+        // !widget.showZoom
+        //     ? SizedBox()
+        //     : IgnorePointer(
+        //       ignoring: false,
+        //       child: Align(
+        //         alignment: Alignment.bottomCenter,
+        //         child: Container(
+        //           width: width,
+        //           height: 40,
+        //           margin: EdgeInsets.only(bottom: 12),
+        //           child: Slider(
+        //             min: 1,
+        //             max: 4,
+        //             value: zoom,
+        //             onChanged: (a) {
+        //               zoom = a;
+        //               setState(() {});
+        //               cameraKitPlusController.setZoom(a);
+        //             },
+        //           ),
+        //         ),
+        //       ),
+        //     ),
+        // IgnorePointer(
+        //   ignoring: false,
+        //   child: Align(
+        //     alignment: Alignment.topCenter,
+        //     child: GestureDetector(
+        //       onTap: () {
+        //         session = SessionStatus.start();
+        //         cameraKitPlusController._sessionHistory.value = [SessionStatus.start()];
+        //         setState(() {});
+        //       },
+        //       child: Container(color: Colors.white, width: width, child: Text(cameraKitPlusController.getSessionHistory.value.last.toString())),
+        //     ),
+        //   ),
+        // ),
       ],
     );
   }

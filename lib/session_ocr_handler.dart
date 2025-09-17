@@ -35,10 +35,12 @@ class SessionOcrHandler {
           final expiryCheck = dateSexMatch.group(5);
           bool birthDateValid = _computeMrzCheckDigit(birthDateStr!) == birthCheck;
           bool expDateValid = _computeMrzCheckDigit(expiryDateStr!) == expiryCheck;
+          bool sexValid = ["M","F","X","<"].contains(sexStr);
 
           var currentVal = updatedSession.validation ?? OcrMrzValidation();
           currentVal.birthDateValid = birthDateValid;
           currentVal.expiryDateValid = expDateValid;
+          currentVal.sexValid = sexValid;
           if (birthDateValid && expDateValid) {
             updatedSession = updatedSession.copyWith(
               step: 2,
@@ -78,7 +80,7 @@ class SessionOcrHandler {
         String exp = parts[1];
         // log("look before $birth or after $exp  ${updatedSession.line2??''}");
         // final countryBeforeBirthReg = RegExp(r'[A-Za-z]{3}' + birth);
-        final countryBeforeBirthReg = RegExp(r'([A-Za-z]{3})(?=' + RegExp.escape(birth) + r')');
+        final countryBeforeBirthReg = RegExp(r'([A-Za-z0-9]{3})(?=' + RegExp.escape(birth) + r')');
         final countryAfterExpReg = RegExp(RegExp.escape(exp) + r'([A-Za-z]{3})');
         String line1 = "";
         String? line3;
@@ -96,7 +98,7 @@ class SessionOcrHandler {
             updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in ${countryBeforeBirthMatch.group(0)}$birth");
           }
           final countryAfterExpMatch = countryAfterExpReg.firstMatch(normalize(l));
-          if (countryAfterExpMatch != null) {
+          if (countryAfterExpMatch != null && normalize(l).startsWith(birth)) {
             // log("we have match after ${countryAfterExpMatch.group(1)}");
             type = DocumentStandardType.td1;
             nationalityStr = countryAfterExpMatch.group(1)!;
@@ -112,6 +114,14 @@ class SessionOcrHandler {
           }
 
           if (nationalityStr != null) {
+            // final fixedNationalityStr = fixAlphaOnlyField(nationalityStr);
+            // if (isValidMrzCountry(nationalityStr)|| isValidMrzCountry(fixedNationalityStr)) {
+            //   var currentVal = updatedSession.validation ?? OcrMrzValidation();
+            //   currentVal.nationalityValid = isValidMrzCountry(nationalityStr)|| isValidMrzCountry(fixedNationalityStr);
+            //   updatedSession = updatedSession.copyWith(step: 3, details: 'Found nationality', nationality: nationalityStr, type: type, line1: line1, line2: normalize(l), line3: line3, validation: currentVal);
+            // }
+
+            final fixedNationalityStr = fixAlphaOnlyField(nationalityStr);
             if (isValidMrzCountry(nationalityStr)) {
               var currentVal = updatedSession.validation ?? OcrMrzValidation();
               currentVal.nationalityValid = isValidMrzCountry(nationalityStr);
@@ -145,6 +155,7 @@ class SessionOcrHandler {
                 String docCode = firstFiveChars.substring(0, 2);
                 String countryCode = firstFiveChars.substring(2, 5);
                 bool validCode = DocumentCodeHelper.isValid(docCode);
+                log("valid code ${validCode} ==> ${docCode}");
                 bool validCountry = isValidMrzCountry(countryCode);
                 if (validCode && validCountry) {
                   numberStr = firstLineGuess.substring(5, 14);
@@ -152,8 +163,23 @@ class SessionOcrHandler {
                   bool validDocNumber = _computeMrzCheckDigit(numberStr) == numberStrCheck;
 
 
+
+
                   currentVal.countryValid = validCountry;
                   currentVal.docCodeValid = validCode;
+
+                  updatedSession = updatedSession.copyWith(
+                    step: 3,
+                    line1: normalizeWithLength(normalize(firstLineGuess), len: 30),
+                    line2: normalizeWithLength("${dateStart}${countryCode}", len: 30),
+                    details: "Found Number Code Country : $numberStr",
+                    countryCode: countryCode,
+                    docCode: docCode,
+                    validation: currentVal,
+                    numberCheck: numberStrCheck,
+                    logDetails: "Found valid $countryCode DocCode $docCode",
+                  );
+
                   currentVal.docNumberValid = validDocNumber;
                   currentVal.linesLengthValid = true;
                   currentVal.finalCheckValid = true;
@@ -171,6 +197,8 @@ class SessionOcrHandler {
                       numberCheck: numberStrCheck,
                       logDetails: "Found valid Number: $numberStr Country: $countryCode DocCode $docCode",
                     );
+                  }else{
+                    // log("invalid doc number $numberStr checked $numberStrCheck\n${normalizeWithLength(normalize(firstLineGuess), len: 30)}");
                   }
                 }
               }
@@ -228,6 +256,7 @@ class SessionOcrHandler {
                     docCode: docCode,
                     docNumber: numberStr,
                     validation: currentVal,
+                    nationality: fixAlphaOnlyField(natOnly),
                     numberCheck: numberStrCheck,
                     logDetails: "Found valid Number: $numberStr Country: $countryCode DocCode $docCode",
                   );
@@ -337,6 +366,7 @@ class SessionOcrHandler {
       //   }
       // }
 
+      // log("${updatedSession.step} ${updatedSession.logDetails??''}");
       return updatedSession;
     } catch (e) {
       if (e is Error) {

@@ -284,11 +284,13 @@ class OcrMrzValidation {
   bool hasFinalCheck;
 
   bool nameValid;
+  bool sexValid;
   bool linesLengthValid;
   bool countryValid;
   bool nationalityValid;
 
   OcrMrzValidation({
+    this.sexValid = false,
     this.docNumberValid = false,
     this.docCodeValid = false,
     this.birthDateValid = false,
@@ -305,6 +307,7 @@ class OcrMrzValidation {
   factory OcrMrzValidation.fromJson(Map<String, dynamic> json) => OcrMrzValidation(
     docNumberValid: json["docNumberValid"] ?? false,
     docCodeValid: json["docCodeValid"] ?? false,
+    sexValid: json["sexValid"] ?? false,
     birthDateValid: json["birthDateValid"] ?? false,
     expiryDateValid: json["expiryDateValid"] ?? false,
     personalNumberValid: json["personalNumberValid"] ?? false,
@@ -318,6 +321,7 @@ class OcrMrzValidation {
 
   Map<String, dynamic> toJson() => {
     "docNumberValid": docNumberValid,
+    "sexValid": sexValid,
     "birthDateValid": birthDateValid,
     "docCodeValid": docCodeValid,
     "expiryDateValid": expiryDateValid,
@@ -341,8 +345,8 @@ class OcrMrzValidation {
         "Exp ${expiryDateValid ? '✅' : '❌'} "
         // "Personal ${personalNumberValid ? '✅' : '❌'}  "
         "Iss ${countryValid ? '✅' : '❌'} "
-        "Nat ${nationalityValid ? '✅' : '❌'} ";
-        // "Name ${nameValid ? '✅' : '❌'} "
+        "Nat ${nationalityValid ? '✅' : '❌'} "
+        "Sex ${sexValid ? '✅' : '❌'} ";
         // "$finalLabel";
   }
 }

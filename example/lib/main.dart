@@ -46,7 +46,7 @@ class _MyHomePageState extends State<MyHomePage> {
     validateExpiryDateValid: true,
     validateDocNumberValid: false,
     validateNames: false,
-    algorithm: ParseAlgorithm.method2
+    algorithm: ParseAlgorithm.method2,
   );
   int logCount = 0;
   OcrMrzLog? lastLog;
@@ -76,6 +76,10 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: GestureDetector(
+          onLongPress: (){
+            controller.resetSession();
+            log("reset sesson");
+          },
           onTap: () {
             // MyOcrHandler.debug("PCAZERAHIMLI <MURADLI<<AYTAKIN<<<<<<<<<<<<<<<\nC038641541AZE98062 72 F33080842 E6HK4A<<<<<<<58 ");
             // final res = MyOcrHandler.debug("PCAZERAHIMLI <MURADLI<<AYTAKIN<<<<<<<<««««K<<\nCO38641541AZE98062 72 F33080842 E6HK4A<<<<«<<58 ");
@@ -212,16 +216,19 @@ class _MyHomePageState extends State<MyHomePage> {
             //     log(a.valid.toString());
             //   });
             // });
-            showDialog(context: context, builder: (BuildContext context) {
-              return SessionLogHistoryListDialog(historyList: controller.getSessionHistory.value,);
-            },);
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return SessionLogHistoryListDialog(historyList: controller.getSessionHistory.value);
+              },
+            );
           },
-          child:ValueListenableBuilder<List<SessionStatus>>(
+          child: ValueListenableBuilder<List<SessionStatus>>(
             valueListenable: controller.getSessionHistory,
             builder: (context, value, child) {
               return Text("Passport Reader ${sessionList.length}");
             },
-          )
+          ),
         ),
         actions: [
           IconButton(
@@ -256,17 +263,18 @@ class _MyHomePageState extends State<MyHomePage> {
               child: Stack(
                 children: [
                   OcrMrzReader(
-                    onSessionChange: (List<SessionStatus> sl){
-                      if(sl.length>1){
+                    onSessionChange: (List<SessionStatus> sl) {
+                      if (sl.length > 1) {
                         sessionList = sl;
-                        setState((){});
+                        setState(() {});
                       }
                     },
                     controller: controller,
-
+                    showFrame: false,
                     setting: setting,
                     onFoundMrz: (a) {
-
+                      // log(a.valid.toString());
+                      // log(a.nationality);
                       if (scanning) {
                         if (a.matchSetting(setting)) {
                           showFoundPassport(a);
