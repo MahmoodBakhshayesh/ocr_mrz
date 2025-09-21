@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:camera_kit_plus/camera_kit_ocr_plus_view.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:ocr_mrz/aggregator.dart';
 import 'package:ocr_mrz/doc_code_validator.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart';
 import 'package:ocr_mrz/my_name_handler.dart';
@@ -12,68 +13,49 @@ import 'enums.dart';
 
 final _dateSexRe = RegExp(r'(\d{6})(\d)([MFX])(\d{6})(\d)', caseSensitive: false);
 
-class SessionOcrHandler {
-  SessionStatus handleSession(SessionStatus session, OcrData ocr) {
+class SessionOcrHandlerConsensus {
+  OcrMrzConsensus handleSession(OcrMrzAggregator aggregator, OcrData ocr) {
     try {
       final List<String> lines = ocr.lines.map((a) => a.text).toList();
       final List<String> baseLines = List<String>.of(ocr.lines.map((a) => a.text).toList());
-      SessionStatus updatedSession = session;
-
-      if (updatedSession.step == 0) {
-        updatedSession = updatedSession.copyWith(step: 1, dateTime: DateTime.now(), details: "Looking for BirthGenderExp", ocr: ocr);
-      }
+      var updatedSession = aggregator.buildStatus();
       // log("handleSession ${updatedSession.step}");
-      if (updatedSession.step == 1) {
-        String secondLineGuess = lines.firstWhere((a) => _dateSexRe.hasMatch(a), orElse: () => '');
-        if (secondLineGuess.isNotEmpty) {
-          final dateSexMatch = _dateSexRe.firstMatch(secondLineGuess);
-          String dateSexStr = dateSexMatch!.group(0)!;
-          final birthDateStr = dateSexMatch.group(1);
-          final birthCheck = dateSexMatch.group(2);
-          final sexStr = dateSexMatch.group(3);
-          final expiryDateStr = dateSexMatch.group(4);
-          final expiryCheck = dateSexMatch.group(5);
-          bool birthDateValid = _computeMrzCheckDigit(birthDateStr!) == birthCheck;
-          bool expDateValid = _computeMrzCheckDigit(expiryDateStr!) == expiryCheck;
-          bool sexValid = ["M", "F", "X", "<"].contains(sexStr);
+      // if (updatedSession.step == 1) {
+      String secondLineGuess = lines.firstWhere((a) => _dateSexRe.hasMatch(a), orElse: () => '');
+      if (secondLineGuess.isNotEmpty) {
+        final dateSexMatch = _dateSexRe.firstMatch(secondLineGuess);
+        String dateSexStr = dateSexMatch!.group(0)!;
+        final birthDateStr = dateSexMatch.group(1);
+        final birthCheck = dateSexMatch.group(2);
+        final sexStr = dateSexMatch.group(3);
+        final expiryDateStr = dateSexMatch.group(4);
+        final expiryCheck = dateSexMatch.group(5);
+        bool birthDateValid = _computeMrzCheckDigit(birthDateStr!) == birthCheck;
+        bool expDateValid = _computeMrzCheckDigit(expiryDateStr!) == expiryCheck;
+        bool sexValid = ["M", "F", "X", "<"].contains(sexStr);
 
-          var currentVal = updatedSession.validation ?? OcrMrzValidation();
-          currentVal.birthDateValid = birthDateValid;
-          currentVal.expiryDateValid = expDateValid;
-          currentVal.sexValid = sexValid;
-          if (birthDateValid && expDateValid) {
-            updatedSession = updatedSession.copyWith(
-              step: 2,
-              details: "Found Dates and Gender",
-              validation: currentVal,
-              birthDate: birthDateStr,
-              expiryDate: expiryDateStr,
-              sex: sexStr,
-              dateSexStr: dateSexStr,
-              line2: secondLineGuess,
-              birthCheck: birthCheck,
-              expCheck: expiryCheck,
-              logDetails: "Found Valid Birth Sex Gender => $dateSexStr",
-            );
-          } else {
-            updatedSession = updatedSession.copyWith(
-              step: 1,
-              details: "Looking for valid Dates",
-              validation: currentVal,
-              birthDate: birthDateStr,
-              expiryDate: expiryDateStr,
-              sex: sexStr,
-              dateSexStr: dateSexStr,
-              line2: secondLineGuess,
-              birthCheck: birthCheck,
-              expCheck: expiryCheck,
-              logDetails: "Found Invalid Birth Sex Gender => $dateSexStr",
-            );
-          }
+        var currentVal = aggregator.validation;
+        currentVal.birthDateValid = birthDateValid;
+        currentVal.expiryDateValid = expDateValid;
+        currentVal.sexValid = sexValid;
+        aggregator.validation = currentVal;
+
+        if (birthDateValid && expDateValid) {
+          aggregator.addBirthDate(birthDateStr);
+          aggregator.addExpiryDate(expiryDateStr);
+          aggregator.addExpCheck(expiryCheck!);
+          aggregator.addBirthCheck(birthCheck!);
+          aggregator.addSex(sexStr!);
+          aggregator.setStep(2);
+
         }
       }
-      if (updatedSession.step == 2) {
+
+      updatedSession = aggregator.buildStatus();
+
+      if ((updatedSession.step??0) >= 2) {
         DocumentStandardType? type;
+        log("date sex str - > ${updatedSession.dateSexStr}");
         final parts = updatedSession.dateSexStr!.split(RegExp(r'[^0-9]+'));
         String? nationalityStr;
         String birth = parts[0];
@@ -96,9 +78,14 @@ class SessionOcrHandler {
               line1 = lines[index - 1];
             }
             updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in ${countryBeforeBirthMatch.group(0)}$birth");
+
+          }else{
+            // if(normalize(l).contains(birth) || true) {
+            //   log("not Found Valid Nationality before ${birth} in ${normalize(l)}");
+            // }
           }
           final countryAfterExpMatch = countryAfterExpReg.firstMatch(normalize(l));
-          if (countryAfterExpMatch != null && normalize(l).startsWith(birth)) {
+          if (countryAfterExpMatch != null ) {
             // log("we have match after ${countryAfterExpMatch.group(1)}");
             type = DocumentStandardType.td1;
             nationalityStr = countryAfterExpMatch.group(1)!;
@@ -109,22 +96,35 @@ class SessionOcrHandler {
               line3 = lines[index + 1];
             }
             updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in $exp${countryAfterExpMatch.group(0)}");
-          } else {
-            // log("not countryAfterExpReg ${normalize(l)}");
+          }else{
+            // if(normalize(l).contains(exp) || true) {
+            //   log("not Found Valid Nationality after ${exp} in ${normalize(l)}");
+            // }
           }
 
           if (nationalityStr != null) {
+            log("potensial nat ${nationalityStr}");
             final fixedNationalityStr = fixAlphaOnlyField(nationalityStr);
             if (isValidMrzCountry(nationalityStr) || isValidMrzCountry(fixedNationalityStr)) {
-              var currentVal = updatedSession.validation ?? OcrMrzValidation();
+              var currentVal = aggregator.validation;
               currentVal.nationalityValid = isValidMrzCountry(nationalityStr) || isValidMrzCountry(fixedNationalityStr);
+
+
+              aggregator.addNationality(nationalityStr);
+              aggregator.validation = currentVal;
+              aggregator.setType(type);
+              aggregator.setStep(3);
               updatedSession = updatedSession.copyWith(step: 3, details: 'Found nationality', nationality: nationalityStr, type: type, line1: line1, line2: normalize(l), line3: line3, validation: currentVal);
             }
 
             // final fixedNationalityStr = fixAlphaOnlyField(nationalityStr);
             if (isValidMrzCountry(nationalityStr)) {
-              var currentVal = updatedSession.validation ?? OcrMrzValidation();
+              var currentVal = aggregator.validation;
               currentVal.nationalityValid = isValidMrzCountry(nationalityStr);
+              aggregator.addNationality(nationalityStr);
+              aggregator.validation = currentVal;
+              aggregator.setType(type);
+              aggregator.setStep(3);
               updatedSession = updatedSession.copyWith(step: 3, details: 'Found nationality', nationality: nationalityStr, type: type, line1: line1, line2: normalize(l), line3: line3, validation: currentVal);
             }
           } else {
@@ -133,21 +133,16 @@ class SessionOcrHandler {
           }
         }
       }
-
-      if (updatedSession.step == 3) {
+      updatedSession = aggregator.buildStatus();
+      if ((updatedSession.step??0) >= 3) {
         String? numberStr;
         if (updatedSession.type == DocumentStandardType.td1) {
           String dateStart = updatedSession.birthDate!;
           for (var l in lines) {
             int index = lines.indexOf(l);
             if (l.startsWith(dateStart)) {
-              // log("we have before ${countryBeforeBirthMatch.group(0)}");
-              // numberStr = numberBeforeNatMatch.group(1)!.replaceAll("O", '0').replaceAll("<", '');
-              // String numberStrCheck = numberBeforeNatMatch.group(2)!;
-              // bool docNumberValid = _computeMrzCheckDigit(numberStr!) == numberStrCheck;
-              // currentVal.docNumberValid = docNumberValid;
 
-              var currentVal = updatedSession.validation!;
+              var currentVal = aggregator.validation;
 
               String firstLineGuess = normalize(lines[index - 1]);
               if (firstLineGuess.length >= 15) {
@@ -155,7 +150,6 @@ class SessionOcrHandler {
                 String docCode = firstFiveChars.substring(0, 2);
                 String countryCode = firstFiveChars.substring(2, 5);
                 bool validCode = DocumentCodeHelper.isValid(docCode);
-                log("valid code ${validCode} ==> ${docCode}");
                 bool validCountry = isValidMrzCountry(countryCode);
                 if (validCode && validCountry) {
                   numberStr = firstLineGuess.substring(5, 14);
@@ -165,52 +159,27 @@ class SessionOcrHandler {
                   currentVal.countryValid = validCountry;
                   currentVal.docCodeValid = validCode;
 
-                  updatedSession = updatedSession.copyWith(
-                    step: 3,
-                    line1: normalizeWithLength(normalize(firstLineGuess), len: 30),
-                    line2: normalizeWithLength("${dateStart}${countryCode}", len: 30),
-                    details: "Found Number Code Country : $numberStr",
-                    countryCode: countryCode,
-                    docCode: docCode,
-                    validation: currentVal,
-                    numberCheck: numberStrCheck,
-                    logDetails: "Found valid $countryCode DocCode $docCode",
-                  );
+                  aggregator.addDocNum(numberStr);
+                  aggregator.addDocCode(docCode);
+                  aggregator.addCountry(countryCode);
+                  aggregator.addNumCheck(numberStrCheck);
+
+                  aggregator.validation = currentVal;
 
                   currentVal.docNumberValid = validDocNumber;
                   currentVal.linesLengthValid = true;
                   currentVal.finalCheckValid = true;
                   currentVal.personalNumberValid = true;
                   if (validDocNumber) {
-                    updatedSession = updatedSession.copyWith(
-                      step: 4,
-                      line1: normalizeWithLength(normalize(firstLineGuess), len: 30),
-                      line2: normalizeWithLength("${dateStart}${numberStr}${numberStrCheck}", len: 30),
-                      details: "Found Number Code Country : $numberStr",
-                      countryCode: countryCode,
-                      docCode: docCode,
-                      docNumber: numberStr,
-                      validation: currentVal,
-                      numberCheck: numberStrCheck,
-                      logDetails: "Found valid Number: $numberStr Country: $countryCode DocCode $docCode",
-                    );
-                  } else {
-                    // log("invalid doc number $numberStr checked $numberStrCheck\n${normalizeWithLength(normalize(firstLineGuess), len: 30)}");
+
+                    var currentVal = aggregator.validation;
+                    currentVal.docNumberValid = true;
+                    aggregator.setStep(4);
+                    aggregator.validation = currentVal;
                   }
                 }
               }
-
-              // log("numberStr $numberStr");
-              // log("numberStrCheck $numberStrCheck");
             }
-
-            // if (nationalityStr != null) {
-            //   if (isValidMrzCountry(nationalityStr)) {
-            //     var currentVal = updatedSession.validation ?? OcrMrzValidation();
-            //     currentVal.nationalityValid = isValidMrzCountry(nationalityStr);
-            //     updatedSession = updatedSession.copyWith(step: 3, details: 'Found nationality', nationality: nationalityStr, type: type, line1: line1, line2: normalize(l), line3: line3, validation: currentVal);
-            //   }
-            // }
           }
         } else {
           final parts = updatedSession.dateSexStr!.split(RegExp(r'[^0-9]+'));
@@ -228,7 +197,7 @@ class SessionOcrHandler {
               numberStr = numberBeforeNatMatch.group(1)!.replaceAll("O", '0').replaceAll("<", '');
               String numberStrCheck = numberBeforeNatMatch.group(2)!;
               bool docNumberValid = _computeMrzCheckDigit(numberStr!) == numberStrCheck;
-              var currentVal = updatedSession.validation!;
+              var currentVal = aggregator.validation;
               currentVal.docNumberValid = docNumberValid;
 
               String firstLineGuess = lines[index - 1];
@@ -239,81 +208,52 @@ class SessionOcrHandler {
                 bool validCode = DocumentCodeHelper.isValid(docCode);
                 bool validCountry = isValidMrzCountry(countryCode);
 
+
+
                 if (validCode && validCountry) {
                   currentVal.countryValid = validCountry;
                   currentVal.docCodeValid = validCode;
                   currentVal.finalCheckValid = true;
                   currentVal.personalNumberValid = true;
                   currentVal.linesLengthValid = true;
-                  updatedSession = updatedSession.copyWith(
-                    step: 4,
-                    details: "Found Number Code Country : $numberStr",
-                    line2: normalizeWithLength('${updatedSession.docNumber}${numberStrCheck}${updatedSession.dateSexStr}${updatedSession.optional ?? ''}', len: 44),
-                    countryCode: countryCode,
-                    docCode: docCode,
-                    docNumber: numberStr,
-                    validation: currentVal,
-                    nationality: fixAlphaOnlyField(natOnly),
-                    numberCheck: numberStrCheck,
-                    logDetails: "Found valid Number: $numberStr Country: $countryCode DocCode $docCode",
-                  );
+
+                  aggregator.setStep(4);
+                  aggregator.addDocNum(numberStr);
+                  aggregator.addNumCheck(numberStrCheck);
+                  aggregator.addDocCode(docCode);
+                  aggregator.addCountry(countryCode);
+                  aggregator.addNationality(fixAlphaOnlyField(natOnly));
+
                 }
               }
 
-              // log("numberStr $numberStr");
-              // log("numberStrCheck $numberStrCheck");
             }
 
-            // if (nationalityStr != null) {
-            //   if (isValidMrzCountry(nationalityStr)) {
-            //     var currentVal = updatedSession.validation ?? OcrMrzValidation();
-            //     currentVal.nationalityValid = isValidMrzCountry(nationalityStr);
-            //     updatedSession = updatedSession.copyWith(step: 3, details: 'Found nationality', nationality: nationalityStr, type: type, line1: line1, line2: normalize(l), line3: line3, validation: currentVal);
-            //   }
-            // }
+
           }
         }
       }
 
-      // if (updatedSession.step == 4) {
-      //   String? numberStr;
-      //   if (updatedSession.type == DocumentStandardType.td1) {
-      //   } else {
-      //     for (var l in lines) {
-      //       int index = lines.indexOf(l);
-      //       if (l.startsWith(updatedSession.docNumber!) && index > 0) {
-      //         String line1 = fixAlphaOnlyField(lines[index - 1]);
-      //         if (line1.length > 13) {
-      //           String firstFiveChars = line1.substring(0, 5);
-      //           String docCode = firstFiveChars.substring(0, 2);
-      //           String countryCode = firstFiveChars.substring(2, 5);
-      //           bool validCode = DocumentCodeHelper.isValid(docCode);
-      //           bool validCountry = isValidMrzCountry(countryCode);
-      //           var currentVal = updatedSession.validation!;
-      //           currentVal.countryValid = validCountry;
-      //           currentVal.docCodeValid = validCode;
-      //
-      //           if (validCountry && validCode) {
-      //             updatedSession = updatedSession.copyWith(step: 5, details: 'Found nationality', line1: normalize(line1), line2: l, countryCode: countryCode, docCode: docCode);
-      //           }
-      //         }
-      //       }
-      //     }
-      //   }
-      // }
-
-      if (updatedSession.step == 4) {
+      updatedSession= aggregator.buildStatus();
+      if ((updatedSession.step??0) >= 4) {
         if (updatedSession.type == DocumentStandardType.td1) {
-          if(lines.length>2){
-            String line3 = lines[2];
+
+          int line2Index = lines.indexWhere((a)=>a.contains(updatedSession.birthDate!));
+          if(line2Index != -1 && lines.length>= line2Index){
+            String line3 = fixAlphaOnlyField(lines[line2Index+1]);
             MrzName? name = parseNamesTd1(line3);
             String firstName = name.givenNames.join(" ");
             String lastName = name.surname;
             List<String> otherLines = [...lines.where((a) => a != line3).map((a) => normalize(a))];
-            var currentVal = updatedSession.validation ?? OcrMrzValidation();
+            var currentVal = aggregator.validation;
             currentVal.nameValid = name.validateNames(otherLines);
-            updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line3: normalize(line3), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
+            aggregator.validation = currentVal;
+            aggregator.addFirstName(firstName);
+            aggregator.addLastName(lastName);
           }
+
+
+            // updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line3: normalize(line3), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
         } else {
           String line1Start = updatedSession.docCode! + updatedSession.countryCode!;
 
@@ -323,9 +263,16 @@ class SessionOcrHandler {
               String firstName = name.givenNames.join(" ");
               String lastName = name.surname;
               List<String> otherLines = [...lines.where((a) => a != l).map((a) => normalize(a))];
-              var currentVal = updatedSession.validation ?? OcrMrzValidation();
+              var currentVal = aggregator.validation;
               currentVal.nameValid = name.validateNames(otherLines);
-              updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line1: normalize(l), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
+              aggregator.validation = currentVal;
+              aggregator.addFirstName(firstName);
+              aggregator.addLastName(lastName);
+
+
+              // var currentVal = updatedSession.validation ?? OcrMrzValidation();
+              // currentVal.nameValid = name.validateNames(otherLines);
+              // updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line1: normalize(l), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
             }
           }
         }
@@ -365,7 +312,7 @@ class SessionOcrHandler {
       // }
 
       // log("${updatedSession.step} ${updatedSession.logDetails??''}");
-      return updatedSession;
+      return aggregator.build();
     } catch (e) {
       if (e is Error) {
         log("$e\n${e.stackTrace}");

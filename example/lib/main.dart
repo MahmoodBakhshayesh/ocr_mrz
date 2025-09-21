@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 
+import 'package:ocr_mrz/aggregator.dart';
 import 'package:ocr_mrz/my_ocr_handler.dart';
 import 'package:ocr_mrz/my_ocr_handler_new.dart';
 import 'package:ocr_mrz/ocr_setting_dialog.dart';
@@ -50,6 +51,7 @@ class _MyHomePageState extends State<MyHomePage> {
   );
   int logCount = 0;
   OcrMrzLog? lastLog;
+  OcrMrzConsensus? improving;
   List<String> fixed = [];
   List<SessionStatus> sessionList = [];
 
@@ -76,7 +78,7 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: GestureDetector(
-          onLongPress: (){
+          onLongPress: () {
             controller.resetSession();
             log("reset sesson");
           },
@@ -269,21 +271,20 @@ class _MyHomePageState extends State<MyHomePage> {
                         setState(() {});
                       }
                     },
+                    onConsensusChanged: (a) {
+                      // log("onCon changed");
+                      improving = a;
+                      setState(() {});
+                    },
                     controller: controller,
                     showFrame: false,
                     setting: setting,
                     onFoundMrz: (a) {
-                      // log(a.valid.toString());
-                      // log(a.nationality);
                       if (scanning) {
                         if (a.matchSetting(setting)) {
                           showFoundPassport(a);
-                        } else {
-                          // log("res does not match setting");
-                          // log(jsonEncode(a.valid.toJson()));
                         }
                       }
-                      // log("✅ ${a.documentType} matched:");
                     },
                     mrzLogger: (l) {
                       if (l.rawMrzLines.isNotEmpty && l.fixedMrzLines.join().trim().isNotEmpty) {
@@ -319,11 +320,176 @@ class _MyHomePageState extends State<MyHomePage> {
                               ),
                             ),
                   ),
+                  Positioned(top: 24, left: 0, right: 0, child: improving == null ? SizedBox() : ImprovingResultWidget(improving!)),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class ImprovingResultWidget extends StatelessWidget {
+  final OcrMrzConsensus improving;
+
+  const ImprovingResultWidget(this.improving, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Column(
+        spacing: 4,
+        children: [
+          Row(
+            spacing: 4,
+            children: [
+              SingularValidationWidget(
+                state: improving?.birthDateStat,
+                label: 'Birth Date',
+                valid: improving?.valid.birthDateValid ?? false,
+                value: improving?.birthDate?.toString(),
+                count: improving?.birthDateStat.consensusCount,
+              ),
+              SingularValidationWidget(
+                state: improving?.expiryDateStat,
+                label: 'Expiry Date',
+                valid: improving?.valid.expiryDateValid ?? false,
+                value: improving?.expiryDate?.toString(),
+                count: improving?.expiryDateStat.consensusCount,
+              ),
+              SingularValidationWidget(state: improving?.sexStat, label: 'Gender', valid: improving?.valid.expiryDateValid ?? false, value: improving?.sex ?? '', count: improving?.sexStat.consensusCount),
+            ],
+          ),
+          Row(
+            spacing: 4,
+            children: [
+              SingularValidationWidget(state: improving?.nationalityStat, label: 'Nationality', valid: improving?.valid.nationalityValid ?? false, value: improving?.nationality, count: improving?.nationalityStat.consensusCount),
+            ],
+          ),
+          Row(
+            spacing: 4,
+            children: [
+              SingularValidationWidget(
+                state: improving?.documentNumberStat,
+                label: 'Doc NO.',
+                valid: improving?.valid.docNumberValid ?? false,
+                value: improving?.documentNumber,
+                count: improving?.documentNumberStat.consensusCount,
+              ),
+              SingularValidationWidget(state: improving?.docCodeStat, label: 'Doc Type', valid: improving?.valid.docCodeValid ?? false, value: improving?.docCode, count: improving?.docCodeStat.consensusCount),
+              SingularValidationWidget(state: improving?.countryCodeStat, label: 'Issuing', valid: improving?.valid.countryValid ?? false, value: improving?.countryCode, count: improving?.countryCodeStat.consensusCount),
+            ],
+          ),
+          Row(
+            spacing: 4,
+            children: [
+              SingularValidationWidget(
+                state: improving?.firstNameStat,
+                label: 'Firstname.',
+                valid: improving?.valid.nameValid ?? false,
+                value: improving?.firstName,
+                count: improving?.firstNameStat.consensusCount,
+                rowCount: 2,
+              ),
+              SingularValidationWidget(
+                rowCount: 2,
+                state: improving?.lastNameStat,
+                label: 'Lastname',
+                valid: improving?.valid.nameValid ?? false,
+                value: improving?.lastName,
+                count: improving?.lastNameStat.consensusCount,
+              ),
+            ],
+          ),
+          FittedBox(child: Text(improving!.mrzLines.join("\n"))),
+          // Wrap(
+          //   runSpacing: 4,
+          //   direction: Axis.horizontal,
+          //   spacing: 12,
+          //
+          //   children: [
+          //
+          //
+          //
+          //     ?setting.validateFinalCheckValid
+          //         ? SingularValidationWidget(
+          //             state: improving?.firstNameStat,
+          //             label: 'Final Check',
+          //             valid: improving?.valid.finalCheckValid ?? false,
+          //             value: (improving?.valid.finalCheckValid ?? false) ? "Yes" : "No",
+          //             count: improving?.firstNameStat.consensusCount,
+          //           )
+          //         : null,
+          //
+          //     ?setting.validatePersonalNumberValid
+          //         ? SingularValidationWidget(
+          //             state: improving?.personalNumberStat,
+          //             label: 'Personal NO.',
+          //             valid: improving?.valid.personalNumberValid ?? false,
+          //             value: improving?.personalNumber,
+          //             count: improving?.personalNumberStat.consensusCount,
+          //           )
+          //         : null,
+          //     ?setting.validateLinesLength
+          //         ? SingularValidationWidget(
+          //             state: improving?.line1Stat,
+          //             label: 'Lines Length',
+          //             valid: improving?.valid.linesLengthValid ?? false,
+          //             value: (improving?.valid.linesLengthValid ?? false) ? "Yes" : "No",
+          //             count: improving?.line1Stat.consensusCount,
+          //           )
+          //         : null,
+          //   ],
+          // ),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+}
+
+class SingularValidationWidget extends StatelessWidget {
+  final String label;
+  final String? value;
+  final bool valid;
+  final FieldStat? state;
+  final int? count;
+  final int rowCount;
+
+  const SingularValidationWidget({super.key, required this.label, required this.value, required this.valid, required this.count, required this.state,this.rowCount = 4});
+
+  @override
+  Widget build(BuildContext context) {
+    ThemeData theme = Theme.of(context);
+    double width = MediaQuery.of(context).size.width;
+    double height = MediaQuery.of(context).size.height;
+    Color color = valid ? Colors.green : Colors.grey;
+    return GestureDetector(
+      onTap: () {},
+      child: Stack(
+        children: [
+          Container(
+            width: (MediaQuery.of(context).size.width - 60) * (1/rowCount),
+            padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(border: Border.all(color: color, width: 1), color: color.withOpacity(.3), borderRadius: BorderRadius.circular(5)),
+            alignment: Alignment.center,
+            child: Column(
+              children: [
+                Text(
+                  // "${label} (${count??0})",
+                  "${label}",
+                  style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 10, height: 1),
+                ),
+                Text(value ?? '', style: TextStyle(color: color, fontSize: 11, height: 1), overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          Positioned(right: 2, bottom: 2, child: Text('${count?.toString() ?? ''}', style: TextStyle(color: Colors.black, fontSize: 9, height: 1, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+        ],
       ),
     );
   }

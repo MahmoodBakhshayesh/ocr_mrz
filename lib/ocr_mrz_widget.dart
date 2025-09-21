@@ -11,8 +11,10 @@ import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 import 'package:ocr_mrz/orc_mrz_log_class.dart';
 import 'package:ocr_mrz/passport_util.dart';
 import 'package:ocr_mrz/session_ocr_handler.dart';
+import 'package:ocr_mrz/session_ocr_handler_consensus.dart';
 import 'package:ocr_mrz/session_status_class.dart';
 
+import 'aggregator.dart';
 import 'improved_ocr_handler.dart';
 import 'mrz_result_class_fix.dart';
 import 'mrz_util.dart';
@@ -24,6 +26,7 @@ export 'session_log_history_list_dialog.dart';
 
 class OcrMrzController extends CameraKitPlusController {
   ValueNotifier<List<SessionStatus>> _sessionHistory = ValueNotifier<List<SessionStatus>>([SessionStatus.start()]);
+  ValueNotifier<OcrMrzAggregator> _aggregator = ValueNotifier<OcrMrzAggregator>(OcrMrzAggregator());
 
   // List<SessionStatus> _sessionHistory = [SessionStatus.start()];
 
@@ -33,6 +36,7 @@ class OcrMrzController extends CameraKitPlusController {
 
   resetSession() {
     _sessionHistory.value = [SessionStatus.start()];
+    _aggregator.value.reset();
   }
 
   ValueNotifier<List<SessionStatus>> get getSessionHistory => _sessionHistory;
@@ -65,14 +69,28 @@ class OcrMrzReader extends StatefulWidget {
   final void Function(OcrMrzResult res) onFoundMrz;
   final void Function(OcrMrzLog log)? mrzLogger;
   final void Function(List<SessionStatus> sessionList)? onSessionChange;
+  final void Function(OcrMrzConsensus sessionList)? onConsensusChanged;
   final List<DocumentType> filterTypes;
   final OcrMrzSetting? setting;
   final OcrMrzController? controller;
   final List<NameValidationData>? nameValidations;
   final bool showFrame;
   final bool showZoom;
+  final OcrMrzAggregator aggregator = OcrMrzAggregator();
 
-  const OcrMrzReader({super.key, required this.onFoundMrz, this.setting, this.nameValidations, this.mrzLogger, this.filterTypes = const [], this.controller, this.showFrame = true, this.showZoom = true, this.onSessionChange});
+  OcrMrzReader({
+    super.key,
+    required this.onFoundMrz,
+    this.setting,
+    this.nameValidations,
+    this.mrzLogger,
+    this.filterTypes = const [],
+    this.controller,
+    this.showFrame = true,
+    this.showZoom = true,
+    this.onSessionChange,
+    this.onConsensusChanged,
+  });
 
   @override
   State<OcrMrzReader> createState() => _OcrMrzReaderState();
@@ -80,10 +98,12 @@ class OcrMrzReader extends StatefulWidget {
 
 class _OcrMrzReaderState extends State<OcrMrzReader> {
   late OcrMrzController cameraKitPlusController = widget.controller ?? OcrMrzController();
+
   // late OcrMrzSetting setting = widget.setting ?? OcrMrzSetting();
   double zoom = 1.0;
 
   SessionStatus session = SessionStatus.start();
+  OcrMrzConsensus? improving;
 
   @override
   void initState() {
@@ -131,43 +151,47 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
           showZoomSlider: widget.showZoom,
           controller: cameraKitPlusController,
           onTextRead: (c) {
-
-            if(widget.setting?.algorithm == ParseAlgorithm.method1){
-              handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-            }else if(widget.setting?.algorithm == ParseAlgorithm.method2){
-
-              final newSess = SessionOcrHandler().handleSession(cameraKitPlusController.getSessionHistory.value.last, c);
-              widget.mrzLogger?.call(newSess.getLog);
-              // log(newSess.nationality??'-');
-
-              session = newSess;
-              if (newSess.logDetails != cameraKitPlusController.getSessionHistory.value.last.logDetails && !cameraKitPlusController.getSessionHistory.value.last.getOcrResult.matchSetting(widget.setting ?? OcrMrzSetting())) {
-                // if (!cameraKitPlusController.getSessionHistory.last.getOcrResult.matchSetting(widget.setting ?? OcrMrzSetting())) {
-                // log("should add new session");
-
-                // cameraKitPlusController.sessionHistory.add(newSess);
-                cameraKitPlusController.addSessionHistory(newSess);
-                widget.onSessionChange?.call(cameraKitPlusController.getSessionHistory.value);
-                // if (newSess.getOcrResult.matchSetting(widget.setting ?? OcrMrzSetting())) {
-                widget.onFoundMrz(newSess.getOcrResult);
-                // }
-              }else{
-                widget.onFoundMrz(newSess.getOcrResult);
+            if (widget.setting?.algorithm == ParseAlgorithm.method3) {
+              OcrMrzLog log = OcrMrzLog(rawText: c.text, rawMrzLines: c.lines.where((a) => a.text.contains("<")).map((a) => a.text).toList(), fixedMrzLines: [], validation: OcrMrzValidation(), extractedData: {});
+              widget.mrzLogger?.call(log);
+            } else {
+              final newCon = SessionOcrHandlerConsensus().handleSession(cameraKitPlusController._aggregator.value, c);
+              improving = newCon;
+              widget.onConsensusChanged?.call(newCon);
+              if (newCon.toResult().matchSetting(widget.setting ?? OcrMrzSetting())) {
+                widget.onFoundMrz(newCon.toResult());
               }
               setState(() {});
-            }else if(widget.setting?.algorithm == ParseAlgorithm.method3){
-              OcrMrzLog log = OcrMrzLog(rawText: c.text, rawMrzLines: c.lines.where((a)=>a.text.contains("<")).map((a)=>a.text).toList(), fixedMrzLines: [], validation: OcrMrzValidation(), extractedData: {});
-              widget.mrzLogger?.call(log);
             }
-
-
-            // if (widget.setting?.algorithm == ParseAlgorithm.method2) {
-            //   handleOcr(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-            // } else if (widget.setting?.algorithm == ParseAlgorithm.method3) {
-            //   handleOcr3(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-            // } else {
-            //   handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
-            // }
+            //   if(widget.setting?.algorithm == ParseAlgorithm.method1){
+            //     handleOcrNew(c, widget.onFoundMrz, widget.setting, widget.nameValidations, widget.mrzLogger, widget.filterTypes);
+            //   }else if(widget.setting?.algorithm == ParseAlgorithm.method2){
+            //
+            //     final newSess = SessionOcrHandler().handleSession(cameraKitPlusController.getSessionHistory.value.last, c);
+            //     widget.mrzLogger?.call(newSess.getLog);
+            //     // log(newSess.nationality??'-');
+            //
+            //     session = newSess;
+            //     if (newSess.logDetails != cameraKitPlusController.getSessionHistory.value.last.logDetails && !cameraKitPlusController.getSessionHistory.value.last.getOcrResult.matchSetting(widget.setting ?? OcrMrzSetting())) {
+            //       // if (!cameraKitPlusController.getSessionHistory.last.getOcrResult.matchSetting(widget.setting ?? OcrMrzSetting())) {
+            //       // log("should add new session");
+            //
+            //       // cameraKitPlusController.sessionHistory.add(newSess);
+            //       cameraKitPlusController.addSessionHistory(newSess);
+            //       widget.onSessionChange?.call(cameraKitPlusController.getSessionHistory.value);
+            //       // if (newSess.getOcrResult.matchSetting(widget.setting ?? OcrMrzSetting())) {
+            //       widget.onFoundMrz(newSess.getOcrResult);
+            //       // }
+            //     }else{
+            //       widget.onFoundMrz(newSess.getOcrResult);
+            //     }
+            //     setState(() {});
+            //   }else if(widget.setting?.algorithm == ParseAlgorithm.method3){
+            //     OcrMrzLog log = OcrMrzLog(rawText: c.text, rawMrzLines: c.lines.where((a)=>a.text.contains("<")).map((a)=>a.text).toList(), fixedMrzLines: [], validation: OcrMrzValidation(), extractedData: {});
+            //     widget.mrzLogger?.call(log);
+            //   }
+            //
+            //
           },
         ),
         // !widget.showFrame
