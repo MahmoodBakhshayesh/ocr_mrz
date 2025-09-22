@@ -55,7 +55,7 @@ class SessionOcrHandlerConsensus {
 
       if ((updatedSession.step??0) >= 2) {
         DocumentStandardType? type;
-        log("date sex str - > ${updatedSession.dateSexStr}");
+        // log("date sex str - > ${updatedSession.dateSexStr}");
         final parts = updatedSession.dateSexStr!.split(RegExp(r'[^0-9]+'));
         String? nationalityStr;
         String birth = parts[0];
@@ -103,7 +103,7 @@ class SessionOcrHandlerConsensus {
           }
 
           if (nationalityStr != null) {
-            log("potensial nat ${nationalityStr}");
+            // log("potensial nat ${nationalityStr}");
             final fixedNationalityStr = fixAlphaOnlyField(nationalityStr);
             if (isValidMrzCountry(nationalityStr) || isValidMrzCountry(fixedNationalityStr)) {
               var currentVal = aggregator.validation;

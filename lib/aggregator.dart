@@ -547,21 +547,32 @@ class OcrMrzAggregator {
     // );
   }
 
-  List<String> buildMrz() {
+  List<String> buildMrz({bool hideName = false}) {
     String? _pickStr(MajorityCounter<String> c) => (c.top()?.$1) ?? '';
     int _pickCnt(MajorityCounter<String> c) => c.top()?.$2 ?? 0;
     final List<String> lines = [];
+    var firstName = _pickStr(_fname)?.replaceAll(" ", "<")??'';
+    var lastName = _pickStr(_lname)?.replaceAll(" ", "<")??'';
+    if(hideName){
+      firstName = mask(firstName);
+      lastName = mask(lastName);
+    }
+
     if (_type == DocumentStandardType.td1) {
       String line1 = "${_pickStr(_docCode)}${_pickStr(_issuing)}${_pickStr(_docNo)}${_pickStr(_numCheck)}".padRight(30, "<");
       String line2 = "${_pickStr(_birth)}${_pickStr(_birthCheck)}${_pickStr(_sex)}${_pickStr(_expiry)}${_pickStr(_expCheck)}${_pickStr(_nat)}".padRight(30, "<");
-      String line3 = "${_pickStr(_lname)?.replaceAll(" ", "<")}<<${_pickStr(_fname)?.replaceAll(" ", "<")}".padRight(30, "<");
+      String line3 = "${lastName}<<${firstName}".padRight(30, "<");
       lines.addAll([line1, line2, line3]);
     } else if (_type == DocumentStandardType.td2 || _type == DocumentStandardType.td3) {
-      String line1 = "${_pickStr(_docCode)}${_pickStr(_issuing)}${_pickStr(_lname)?.replaceAll(" ", "<")}<<${_pickStr(_fname)?.replaceAll(" ", "<")}".padRight(44, "<");
+      String line1 = "${_pickStr(_docCode)}${_pickStr(_issuing)}${lastName}<<${firstName}".padRight(44, "<");
       String line2 = "${_pickStr(_docNo)}${_pickStr(_numCheck)}${_pickStr(_nat)}${_pickStr(_birth)}${_pickStr(_birthCheck)}${_pickStr(_sex)}${_pickStr(_expiry)}${_pickStr(_expCheck)}".padRight(44, "<");
       lines.addAll([line1, line2]);
     }
     return lines;
+  }
+
+  String mask(String input) {
+    return '*' * input.length;
   }
 
   void reset() {
