@@ -46,7 +46,7 @@ class _MyHomePageState extends State<MyHomePage> {
     validateFinalCheckValid: false,
     validateExpiryDateValid: true,
     validateDocNumberValid: false,
-    validateNames: false,
+    validateNames: true,
     algorithm: ParseAlgorithm.method2,
   );
   int logCount = 0;
@@ -79,8 +79,9 @@ class _MyHomePageState extends State<MyHomePage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: GestureDetector(
           onLongPress: () {
+
             controller.resetSession();
-            log("reset sesson");
+            // log("reset sesson");
           },
           onTap: () {
             // MyOcrHandler.debug("PCAZERAHIMLI <MURADLI<<AYTAKIN<<<<<<<<<<<<<<<\nC038641541AZE98062 72 F33080842 E6HK4A<<<<<<<58 ");
@@ -279,6 +280,9 @@ class _MyHomePageState extends State<MyHomePage> {
                     controller: controller,
                     showFrame: false,
                     setting: setting,
+                    countValidation: OcrMrzCountValidation(
+                      nameValidCount: 5
+                    ),
                     onFoundMrz: (a) {
                       if (scanning) {
                         if (a.matchSetting(setting)) {
@@ -348,60 +352,60 @@ class ImprovingResultWidget extends StatelessWidget {
             spacing: 4,
             children: [
               SingularValidationWidget(
-                state: improving?.birthDateStat,
+                state: improving.birthDateStat,
                 label: 'Birth Date',
-                valid: improving?.valid.birthDateValid ?? false,
-                value: improving?.birthDate?.toString(),
-                count: improving?.birthDateStat.consensusCount,
+                valid: improving.valid.birthDateValid,
+                value: improving.birthDate?.toString(),
+                count: improving.birthDateStat.consensusCount,
               ),
               SingularValidationWidget(
-                state: improving?.expiryDateStat,
+                state: improving.expiryDateStat,
                 label: 'Expiry Date',
-                valid: improving?.valid.expiryDateValid ?? false,
-                value: improving?.expiryDate?.toString(),
-                count: improving?.expiryDateStat.consensusCount,
+                valid: improving.valid.expiryDateValid ?? false,
+                value: improving.expiryDate?.toString(),
+                count: improving.expiryDateStat.consensusCount,
               ),
-              SingularValidationWidget(state: improving?.sexStat, label: 'Gender', valid: improving?.valid.expiryDateValid ?? false, value: improving?.sex ?? '', count: improving?.sexStat.consensusCount),
+              SingularValidationWidget(state: improving.sexStat, label: 'Gender', valid: improving.valid.expiryDateValid ?? false, value: improving.sex ?? '', count: improving.sexStat.consensusCount),
             ],
           ),
           Row(
             spacing: 4,
             children: [
-              SingularValidationWidget(state: improving?.nationalityStat, label: 'Nationality', valid: improving?.valid.nationalityValid ?? false, value: improving?.nationality, count: improving?.nationalityStat.consensusCount),
+              SingularValidationWidget(state: improving.nationalityStat, label: 'Nationality', valid: improving.valid.nationalityValid ?? false, value: improving.nationality, count: improving.nationalityStat.consensusCount),
             ],
           ),
           Row(
             spacing: 4,
             children: [
               SingularValidationWidget(
-                state: improving?.documentNumberStat,
+                state: improving.documentNumberStat,
                 label: 'Doc NO.',
-                valid: improving?.valid.docNumberValid ?? false,
-                value: improving?.documentNumber,
-                count: improving?.documentNumberStat.consensusCount,
+                valid: improving.valid.docNumberValid ?? false,
+                value: improving.documentNumber,
+                count: improving.documentNumberStat.consensusCount,
               ),
-              SingularValidationWidget(state: improving?.docCodeStat, label: 'Doc Type', valid: improving?.valid.docCodeValid ?? false, value: improving?.docCode, count: improving?.docCodeStat.consensusCount),
-              SingularValidationWidget(state: improving?.countryCodeStat, label: 'Issuing', valid: improving?.valid.countryValid ?? false, value: improving?.countryCode, count: improving?.countryCodeStat.consensusCount),
+              SingularValidationWidget(state: improving.docCodeStat, label: 'Doc Type', valid: improving.valid.docCodeValid ?? false, value: improving.docCode, count: improving.docCodeStat.consensusCount),
+              SingularValidationWidget(state: improving.countryCodeStat, label: 'Issuing', valid: improving.valid.countryValid ?? false, value: improving.countryCode, count: improving.countryCodeStat.consensusCount),
             ],
           ),
           Row(
             spacing: 4,
             children: [
               SingularValidationWidget(
-                state: improving?.firstNameStat,
+                state: improving.firstNameStat,
                 label: 'Firstname.',
-                valid: improving?.valid.nameValid ?? false,
-                value: improving?.firstName,
-                count: improving?.firstNameStat.consensusCount,
+                valid: improving.valid.nameValid ?? false,
+                value: improving.firstName,
+                count: improving.firstNameStat.consensusCount,
                 rowCount: 2,
               ),
               SingularValidationWidget(
                 rowCount: 2,
-                state: improving?.lastNameStat,
+                state: improving.lastNameStat,
                 label: 'Lastname',
-                valid: improving?.valid.nameValid ?? false,
-                value: improving?.lastName,
-                count: improving?.lastNameStat.consensusCount,
+                valid: improving.valid.nameValid ?? false,
+                value: improving.lastName,
+                count: improving.lastNameStat.consensusCount,
               ),
             ],
           ),

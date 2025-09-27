@@ -18,6 +18,7 @@ class SessionOcrHandlerConsensus {
     try {
       final List<String> lines = ocr.lines.map((a) => a.text).toList();
       final List<String> baseLines = List<String>.of(ocr.lines.map((a) => a.text).toList());
+      aggregator.addFrameLines(lines);
       var updatedSession = aggregator.buildStatus();
       // log("handleSession ${updatedSession.step}");
       // if (updatedSession.step == 1) {

@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:camera_kit_plus/camera_kit_plus.dart';
 import 'package:ocr_mrz/enums.dart';
+import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 import 'package:ocr_mrz/session_status_class.dart';
 
 import 'mrz_result_class_fix.dart';
@@ -49,9 +50,30 @@ String _normString(String v) => v.trim();
 
 String _dateKey(DateTime d) => d.toIso8601String().split('T').first; // yyyy-MM-dd
 
-DateTime _parseDateKey(String k) {
-  // k is in yyyy-MM-dd format
-  return DateTime.tryParse("$k 00:00:00Z") ?? DateTime.now().toUtc();
+// DateTime _parseDateKey(String k) {
+//   // k is in yyyy-MM-dd format
+//   return DateTime.tryParse("$k 00:00:00Z") ?? DateTime.now().toUtc();
+// }
+
+DateTime? _parseDateKey(String yymmdd) {
+  if (!RegExp(r'^\d{6}$').hasMatch(yymmdd)) return null;
+
+  final year = int.parse(yymmdd.substring(0, 2));
+  final month = int.parse(yymmdd.substring(2, 4));
+  final day = int.parse(yymmdd.substring(4, 6));
+
+  // MRZ dates assume:
+  // - birth: usually 1900–2029 (but safe to assume <= current year)
+  // - expiry: usually 2000–2099
+  final now = DateTime.now().year % 100;
+
+  final fullYear = year <= now + 10 ? 2000 + year : 1900 + year;
+
+  try {
+    return DateTime.utc(fullYear, month, day);
+  } catch (_) {
+    return null;
+  }
 }
 
 /// ---------- Aggregated Field Stats ----------
@@ -261,6 +283,8 @@ class OcrMrzAggregator {
   final _expCheck = MajorityCounter<String>(normalize: _normString);
   final _numCheck = MajorityCounter<String>(normalize: _normString);
 
+  final  List<List<String>> _ocrLinesHistory = [];
+
   int _framesSeen = 0;
   int _step = 0;
   DocumentStandardType? _type;
@@ -410,8 +434,12 @@ class OcrMrzAggregator {
     _type = type;
   }
 
+  void addFrameLines(List<String> lines) {
+     _ocrLinesHistory.add(lines);
+  }
+
   /// Build consensus values and expose stats/histograms.
-  OcrMrzConsensus build() {
+  OcrMrzConsensus build({bool maskName = false}) {
     String? _pickStr(MajorityCounter<String> c) => c.top()?.$1;
     int _pickCnt(MajorityCounter<String> c) => c.top()?.$2 ?? 0;
 
@@ -468,7 +496,7 @@ class OcrMrzAggregator {
       expiryDateStat: FieldStat(consensus: expiryKey, consensusCount: _pickCnt(_expiry), histogram: _expiry.snapshot()),
       docTypeStat: FieldStat(consensus: docType, consensusCount: _pickCnt(_docType), histogram: _docType.snapshot()),
 
-      mrzLines: buildMrz(),
+      mrzLines: buildMrz(hideName: maskName),
     );
   }
 
@@ -551,9 +579,9 @@ class OcrMrzAggregator {
     String? _pickStr(MajorityCounter<String> c) => (c.top()?.$1) ?? '';
     int _pickCnt(MajorityCounter<String> c) => c.top()?.$2 ?? 0;
     final List<String> lines = [];
-    var firstName = _pickStr(_fname)?.replaceAll(" ", "<")??'';
-    var lastName = _pickStr(_lname)?.replaceAll(" ", "<")??'';
-    if(hideName){
+    var firstName = _pickStr(_fname)?.replaceAll(" ", "<") ?? '';
+    var lastName = _pickStr(_lname)?.replaceAll(" ", "<") ?? '';
+    if (hideName) {
       firstName = mask(firstName);
       lastName = mask(lastName);
     }
@@ -596,9 +624,29 @@ class OcrMrzAggregator {
     _expCheck._counts.clear();
     _numCheck._counts.clear();
     _framesSeen = 0;
+    _ocrLinesHistory.clear();
     _step = 0;
     _type = null;
   }
 
   int get framesSeen => _framesSeen;
+
+  bool matchValidationCount(OcrMrzCountValidation? countValidation,OcrMrzSetting setting) {
+    int _pickCnt(MajorityCounter<String> c) => c.top()?.$2 ?? 0;
+    if (countValidation == null) {
+      return true;
+    }
+    bool countryCountValid = !setting.validateCountry || _pickCnt(_country) >= countValidation.countryValidCount;
+    bool natCountValid =!setting.validateNationality ||  _pickCnt(_nat) >= countValidation.nationalityValidCount;
+    bool birthCountValid = !setting.validateBirthDateValid || _pickCnt(_birth) >= countValidation.birthDateValidCount;
+    bool expiryCountValid =!setting.validateExpiryDateValid ||  _pickCnt(_expiry) >= countValidation.expiryDateValidCount;
+    bool sexCountValid = _pickCnt(_sex) >= countValidation.sexValidCount;
+    bool docCodeCountValid =!setting.validationDocumentCode ||  _pickCnt(_docCode) >= countValidation.docCodeValidCount;
+    bool optCountValid =!setting.validatePersonalNumberValid ||  _pickCnt(_opt) >= countValidation.personalNumberValidCount;
+    bool fNameCountValid =!setting.validateNames ||  _pickCnt(_fname) >= countValidation.nameValidCount;
+    bool lNameCountValid =!setting.validateNames ||  _pickCnt(_lname) >= countValidation.nameValidCount;
+    bool docNumCountValid =!setting.validateDocNumberValid ||  _pickCnt(_docCode) >= countValidation.docNumberValidCount;
+
+    return (countryCountValid && natCountValid && birthCountValid && expiryCountValid && sexCountValid && docCodeCountValid && optCountValid && fNameCountValid && lNameCountValid && docNumCountValid);
+  }
 }

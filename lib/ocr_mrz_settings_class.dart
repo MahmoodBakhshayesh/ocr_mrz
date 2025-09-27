@@ -42,15 +42,15 @@ class OcrMrzSetting {
     this.validateBirthDateValid = true,
     this.validateExpiryDateValid = true,
     this.validationDocumentCode = true,
-    this.validatePersonalNumberValid = true,
-    this.validateFinalCheckValid = true,
-    this.validateNames = true,
-    this.validateLinesLength = true,
+    this.validatePersonalNumberValid = false,
+    this.validateFinalCheckValid = false,
+    this.validateNames = false,
+    this.validateLinesLength = false,
     this.validateCountry = true,
     this.validateNationality = true,
     this.rotation = 0,
-    this.macro = false,
-    this.algorithm = ParseAlgorithm.method3,
+    this.macro = true,
+    this.algorithm = ParseAlgorithm.method2,
   });
 
   OcrMrzSetting copyWith({

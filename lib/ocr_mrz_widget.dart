@@ -72,6 +72,7 @@ class OcrMrzReader extends StatefulWidget {
   final void Function(OcrMrzConsensus sessionList)? onConsensusChanged;
   final List<DocumentType> filterTypes;
   final OcrMrzSetting? setting;
+  final OcrMrzCountValidation? countValidation;
   final OcrMrzController? controller;
   final List<NameValidationData>? nameValidations;
   final bool showFrame;
@@ -89,6 +90,7 @@ class OcrMrzReader extends StatefulWidget {
     this.showFrame = true,
     this.showZoom = true,
     this.onSessionChange,
+    this.countValidation,
     this.onConsensusChanged,
   });
 
@@ -139,11 +141,6 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
 
   @override
   Widget build(BuildContext context) {
-    double width = MediaQuery.of(context).size.width * 0.9;
-    // log(setting.algorithm.toString());
-    // log("here ${setting.algorithm.toString() == ParseAlgorithm.method2.toString()}");
-    // log("here ${ParseAlgorithm.method2.toString()}");
-    // log("here ${setting.algorithm.toString()}");
     return Stack(
       children: [
         CameraKitOcrPlusView(
@@ -158,8 +155,10 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
               final newCon = SessionOcrHandlerConsensus().handleSession(cameraKitPlusController._aggregator.value, c);
               improving = newCon;
               widget.onConsensusChanged?.call(newCon);
-              if (newCon.toResult().matchSetting(widget.setting ?? OcrMrzSetting())) {
-                widget.onFoundMrz(newCon.toResult());
+              if(cameraKitPlusController._aggregator.value.matchValidationCount(widget.countValidation,widget.setting ?? OcrMrzSetting())) {
+                if (newCon.toResult().matchSetting(widget.setting ?? OcrMrzSetting())) {
+                  widget.onFoundMrz(newCon.toResult());
+                }
               }
               setState(() {});
             }
@@ -194,46 +193,6 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
             //
           },
         ),
-        // !widget.showFrame
-        //     ? SizedBox()
-        //     : IgnorePointer(child: Align(alignment: Alignment.center, child: SizedBox(width: width, height: width * 0.7, child: Image.asset("assets/images/scanner_frame.png", package: 'ocr_mrz', fit: BoxFit.fill)))),
-        // !widget.showZoom
-        //     ? SizedBox()
-        //     : IgnorePointer(
-        //       ignoring: false,
-        //       child: Align(
-        //         alignment: Alignment.bottomCenter,
-        //         child: Container(
-        //           width: width,
-        //           height: 40,
-        //           margin: EdgeInsets.only(bottom: 12),
-        //           child: Slider(
-        //             min: 1,
-        //             max: 4,
-        //             value: zoom,
-        //             onChanged: (a) {
-        //               zoom = a;
-        //               setState(() {});
-        //               cameraKitPlusController.setZoom(a);
-        //             },
-        //           ),
-        //         ),
-        //       ),
-        //     ),
-        // IgnorePointer(
-        //   ignoring: false,
-        //   child: Align(
-        //     alignment: Alignment.topCenter,
-        //     child: GestureDetector(
-        //       onTap: () {
-        //         session = SessionStatus.start();
-        //         cameraKitPlusController._sessionHistory.value = [SessionStatus.start()];
-        //         setState(() {});
-        //       },
-        //       child: Container(color: Colors.white, width: width, child: Text(cameraKitPlusController.getSessionHistory.value.last.toString())),
-        //     ),
-        //   ),
-        // ),
       ],
     );
   }

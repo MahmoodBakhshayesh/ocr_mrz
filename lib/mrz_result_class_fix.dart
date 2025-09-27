@@ -351,6 +351,56 @@ class OcrMrzValidation {
   }
 }
 
+class OcrMrzCountValidation {
+  int docNumberValidCount;
+  int docCodeValidCount;
+  int birthDateValidCount;
+  int expiryDateValidCount;
+  int personalNumberValidCount;
+  int nameValidCount;
+  int sexValidCount;
+  int countryValidCount;
+  int nationalityValidCount;
+
+  OcrMrzCountValidation({
+    this.docNumberValidCount = 1,
+    this.docCodeValidCount = 1,
+    this.birthDateValidCount = 1,
+    this.expiryDateValidCount = 1,
+    this.personalNumberValidCount = 1,
+    this.nameValidCount = 1,
+    this.sexValidCount = 1,
+    this.countryValidCount = 1,
+    this.nationalityValidCount = 1,
+  });
+
+  factory OcrMrzCountValidation.fromJson(Map<String, dynamic> json) => OcrMrzCountValidation(
+    docNumberValidCount: json["docNumberValidCount"] ?? 1,
+    docCodeValidCount: json["docCodeValidCount"] ?? 1,
+    birthDateValidCount: json["birthDateValidCount"] ?? 1,
+    expiryDateValidCount: json["expiryDateValidCount"] ?? 1,
+    personalNumberValidCount: json["personalNumberValidCount"] ?? 1,
+    nameValidCount: json["nameValidCount"] ?? 1,
+    sexValidCount: json["sexValidCount"] ?? 1,
+    countryValidCount: json["countryValidCount"] ?? 1,
+    nationalityValidCount: json["nationalityValidCount"] ?? 1,
+  );
+
+  Map<String, dynamic> toJson() => {
+    "docNumberValidCount": docNumberValidCount,
+    "docCodeValidCount": docCodeValidCount,
+    "birthDateValidCount": birthDateValidCount,
+    "expiryDateValidCount": expiryDateValidCount,
+    "personalNumberValidCount": personalNumberValidCount,
+    "nameValidCount": nameValidCount,
+    "sexValidCount": sexValidCount,
+    "countryValidCount": countryValidCount,
+    "nationalityValidCount": nationalityValidCount,
+  };
+
+}
+
+
 
 /// Write as UTC midnight ISO (e.g. 2025-09-06T00:00:00.000Z)
 String? dateAsUtcIso(DateTime? d) {
