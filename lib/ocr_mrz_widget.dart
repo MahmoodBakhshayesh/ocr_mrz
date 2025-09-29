@@ -39,6 +39,8 @@ class OcrMrzController extends CameraKitPlusController {
     _aggregator.value.reset();
   }
 
+  OcrMrzAggregator get getAggregator => _aggregator.value;
+
   ValueNotifier<List<SessionStatus>> get getSessionHistory => _sessionHistory;
 
   void setSessionHistory(List<SessionStatus> sh) {

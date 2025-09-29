@@ -284,7 +284,7 @@ class OcrMrzAggregator {
   final _expCheck = MajorityCounter<String>(normalize: _normString);
   final _numCheck = MajorityCounter<String>(normalize: _normString);
 
-  final  List<List<String>> _ocrLinesHistory = [];
+  final List<List<String>> _ocrLinesHistory = [];
 
   int _framesSeen = 0;
   int _step = 0;
@@ -436,7 +436,11 @@ class OcrMrzAggregator {
   }
 
   void addFrameLines(List<String> lines) {
-     _ocrLinesHistory.add(lines);
+    _ocrLinesHistory.add(lines);
+  }
+
+  bool sessionScannedData(String data) {
+    return _ocrLinesHistory.any((a) => a.join("\n").contains(data));
   }
 
   /// Build consensus values and expose stats/histograms.
@@ -463,14 +467,14 @@ class OcrMrzAggregator {
     final docType = _pickStr(_docType);
 
     return OcrMrzConsensus(
-      countryCode: country==null?null:fixAlphaOnlyField(country),
-      issuingState: (issuing ?? country)==null?null:fixAlphaOnlyField((issuing ?? country)!),
+      countryCode: country == null ? null : fixAlphaOnlyField(country),
+      issuingState: (issuing ?? country) == null ? null : fixAlphaOnlyField((issuing ?? country)!),
       docCode: docCode ?? docCode,
       // fallback
       documentNumber: docNo,
       lastName: lname,
       firstName: fname,
-      nationality: nat==null?null:fixAlphaOnlyField(nat),
+      nationality: nat == null ? null : fixAlphaOnlyField(nat),
       birthDate: birthKey != null ? _parseDateKey(birthKey) : null,
       expiryDate: expiryKey != null ? _parseDateKey(expiryKey) : null,
       sex: sex,
@@ -632,21 +636,21 @@ class OcrMrzAggregator {
 
   int get framesSeen => _framesSeen;
 
-  bool matchValidationCount(OcrMrzCountValidation? countValidation,OcrMrzSetting setting) {
+  bool matchValidationCount(OcrMrzCountValidation? countValidation, OcrMrzSetting setting) {
     int _pickCnt(MajorityCounter<String> c) => c.top()?.$2 ?? 0;
     if (countValidation == null) {
       return true;
     }
     bool countryCountValid = !setting.validateCountry || _pickCnt(_country) >= countValidation.countryValidCount;
-    bool natCountValid =!setting.validateNationality ||  _pickCnt(_nat) >= countValidation.nationalityValidCount;
+    bool natCountValid = !setting.validateNationality || _pickCnt(_nat) >= countValidation.nationalityValidCount;
     bool birthCountValid = !setting.validateBirthDateValid || _pickCnt(_birth) >= countValidation.birthDateValidCount;
-    bool expiryCountValid =!setting.validateExpiryDateValid ||  _pickCnt(_expiry) >= countValidation.expiryDateValidCount;
+    bool expiryCountValid = !setting.validateExpiryDateValid || _pickCnt(_expiry) >= countValidation.expiryDateValidCount;
     bool sexCountValid = _pickCnt(_sex) >= countValidation.sexValidCount;
-    bool docCodeCountValid =!setting.validationDocumentCode ||  _pickCnt(_docCode) >= countValidation.docCodeValidCount;
-    bool optCountValid =!setting.validatePersonalNumberValid ||  _pickCnt(_opt) >= countValidation.personalNumberValidCount;
-    bool fNameCountValid =!setting.validateNames ||  _pickCnt(_fname) >= countValidation.nameValidCount;
-    bool lNameCountValid =!setting.validateNames ||  _pickCnt(_lname) >= countValidation.nameValidCount;
-    bool docNumCountValid =!setting.validateDocNumberValid ||  _pickCnt(_docCode) >= countValidation.docNumberValidCount;
+    bool docCodeCountValid = !setting.validationDocumentCode || _pickCnt(_docCode) >= countValidation.docCodeValidCount;
+    bool optCountValid = !setting.validatePersonalNumberValid || _pickCnt(_opt) >= countValidation.personalNumberValidCount;
+    bool fNameCountValid = !setting.validateNames || _pickCnt(_fname) >= countValidation.nameValidCount;
+    bool lNameCountValid = !setting.validateNames || _pickCnt(_lname) >= countValidation.nameValidCount;
+    bool docNumCountValid = !setting.validateDocNumberValid || _pickCnt(_docCode) >= countValidation.docNumberValidCount;
 
     return (countryCountValid && natCountValid && birthCountValid && expiryCountValid && sexCountValid && docCodeCountValid && optCountValid && fNameCountValid && lNameCountValid && docNumCountValid);
   }
