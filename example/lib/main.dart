@@ -281,7 +281,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     showFrame: false,
                     setting: setting,
                     countValidation: OcrMrzCountValidation(
-                      nameValidCount: 5
+                      // nameValidCount: 5
                     ),
                     onFoundMrz: (a) {
                       if (scanning) {

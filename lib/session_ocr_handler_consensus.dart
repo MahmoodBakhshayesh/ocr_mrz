@@ -81,26 +81,43 @@ class SessionOcrHandlerConsensus {
             updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in ${countryBeforeBirthMatch.group(0)}$birth");
 
           }else{
+            if(l.contains(birth)){
+              String beforeBirth = l.split(birth).first;
+              if(beforeBirth.length>2){
+                String natCondidate = beforeBirth.substring(beforeBirth.length - 3);
+                natCondidate = fixAlphaOnlyField(natCondidate);
+                type = l.length < 40 ? DocumentStandardType.td2 : DocumentStandardType.td3;
+                nationalityStr = natCondidate;
+                if (index != 0) {
+                  line1 = lines[index - 1];
+                }
+                updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in ${natCondidate}$birth");
+              }
+            }
+
+
             // if(normalize(l).contains(birth) || true) {
             //   log("not Found Valid Nationality before ${birth} in ${normalize(l)}");
             // }
           }
-          final countryAfterExpMatch = countryAfterExpReg.firstMatch(normalize(l));
-          if (countryAfterExpMatch != null ) {
-            // log("we have match after ${countryAfterExpMatch.group(1)}");
-            type = DocumentStandardType.td1;
-            nationalityStr = countryAfterExpMatch.group(1)!;
-            if (index != 0) {
-              line1 = lines[index - 1];
+          if(nationalityStr == null) {
+            final countryAfterExpMatch = countryAfterExpReg.firstMatch(normalize(l));
+            if (countryAfterExpMatch != null) {
+              // log("we have match after ${countryAfterExpMatch.group(1)}");
+              type = DocumentStandardType.td1;
+              nationalityStr = countryAfterExpMatch.group(1)!;
+              if (index != 0) {
+                line1 = lines[index - 1];
+              }
+              if (index != lines.length - 1) {
+                line3 = lines[index + 1];
+              }
+              updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in $exp${countryAfterExpMatch.group(0)}");
+            } else {
+              // if(normalize(l).contains(exp) || true) {
+              //   log("not Found Valid Nationality after ${exp} in ${normalize(l)}");
+              // }
             }
-            if (index != lines.length - 1) {
-              line3 = lines[index + 1];
-            }
-            updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in $exp${countryAfterExpMatch.group(0)}");
-          }else{
-            // if(normalize(l).contains(exp) || true) {
-            //   log("not Found Valid Nationality after ${exp} in ${normalize(l)}");
-            // }
           }
 
           if (nationalityStr != null) {

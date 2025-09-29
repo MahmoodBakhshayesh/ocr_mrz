@@ -413,12 +413,12 @@ class OcrMrzAggregator {
   }
 
   void addBirthCheck(String check) {
-    log("Setting birth check $check");
+    // log("Setting birth check $check");
     _birthCheck.add(check);
   }
 
   void addExpCheck(String check) {
-    log("Setting exp check $check");
+    // log("/**/Setting exp check $check");
     _expCheck.add(check);
   }
 
