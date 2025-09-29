@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:camera_kit_plus/camera_kit_plus.dart';
 import 'package:ocr_mrz/enums.dart';
+import 'package:ocr_mrz/my_ocr_handler.dart' hide DocumentStandardType;
 import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 import 'package:ocr_mrz/session_status_class.dart';
 
@@ -462,14 +463,14 @@ class OcrMrzAggregator {
     final docType = _pickStr(_docType);
 
     return OcrMrzConsensus(
-      countryCode: country,
-      issuingState: issuing ?? country,
+      countryCode: country==null?null:fixAlphaOnlyField(country),
+      issuingState: (issuing ?? country)==null?null:fixAlphaOnlyField((issuing ?? country)!),
       docCode: docCode ?? docCode,
       // fallback
       documentNumber: docNo,
       lastName: lname,
       firstName: fname,
-      nationality: nat,
+      nationality: nat==null?null:fixAlphaOnlyField(nat),
       birthDate: birthKey != null ? _parseDateKey(birthKey) : null,
       expiryDate: expiryKey != null ? _parseDateKey(expiryKey) : null,
       sex: sex,

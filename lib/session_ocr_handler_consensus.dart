@@ -130,6 +130,7 @@ class SessionOcrHandlerConsensus {
 
               aggregator.addNationality(nationalityStr);
               aggregator.validation = currentVal;
+
               aggregator.setType(type);
               aggregator.setStep(3);
               updatedSession = updatedSession.copyWith(step: 3, details: 'Found nationality', nationality: nationalityStr, type: type, line1: line1, line2: normalize(l), line3: line3, validation: currentVal);
