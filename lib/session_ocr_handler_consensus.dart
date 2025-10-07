@@ -16,6 +16,11 @@ final _dateSexRe = RegExp(r'(\d{6})(\d)([MFX])(\d{6})(\d)', caseSensitive: false
 class SessionOcrHandlerConsensus {
   OcrMrzConsensus handleSession(OcrMrzAggregator aggregator, OcrData ocr) {
     try {
+      // final a = "AM480420";
+      final a = "ANG80420<";
+      final b = "Y62927483";
+      // log("digit check of ${a} ==> ${_computeMrzCheckDigit(a)}");
+      // log("digit check of ${b} ==> ${_computeMrzCheckDigit(b)}");
       final List<String> lines = ocr.lines.map((a) => a.text).toList();
       final List<String> baseLines = List<String>.of(ocr.lines.map((a) => a.text).toList());
       aggregator.addFrameLines(lines);
@@ -178,10 +183,8 @@ class SessionOcrHandlerConsensus {
                   currentVal.countryValid = validCountry;
                   currentVal.docCodeValid = validCode;
 
-                  aggregator.addDocNum(numberStr);
                   aggregator.addDocCode(docCode);
                   aggregator.addCountry(countryCode);
-                  aggregator.addNumCheck(numberStrCheck);
 
                   aggregator.validation = currentVal;
 
@@ -190,10 +193,15 @@ class SessionOcrHandlerConsensus {
                   currentVal.finalCheckValid = true;
                   currentVal.personalNumberValid = true;
                   if (validDocNumber) {
+                    aggregator.addDocNum(numberStr);
+                    aggregator.addNumCheck(numberStrCheck);
+                    aggregator.addNumWithCheck(numberStrCheck+numberStrCheck);
+
 
                     var currentVal = aggregator.validation;
                     currentVal.docNumberValid = true;
                     aggregator.setStep(4);
+
                     aggregator.validation = currentVal;
                   }
                 }
@@ -219,6 +227,7 @@ class SessionOcrHandlerConsensus {
               var currentVal = aggregator.validation;
               currentVal.docNumberValid = docNumberValid;
 
+
               String firstLineGuess = lines[index - 1];
               if (firstLineGuess.length > 5) {
                 String firstFiveChars = firstLineGuess.substring(0, 5);
@@ -236,9 +245,16 @@ class SessionOcrHandlerConsensus {
                   currentVal.personalNumberValid = true;
                   currentVal.linesLengthValid = true;
 
+                  if (docNumberValid) {
+                    aggregator.addDocNum(numberStr);
+                    aggregator.addNumCheck(numberStrCheck);
+                    aggregator.addNumWithCheck(numberStr + numberStrCheck);
+                  }
+
+
                   aggregator.setStep(4);
-                  aggregator.addDocNum(numberStr);
-                  aggregator.addNumCheck(numberStrCheck);
+                  // aggregator.addDocNum(numberStr);
+                  // aggregator.addNumCheck(numberStrCheck);
                   aggregator.addDocCode(docCode);
                   aggregator.addCountry(countryCode);
                   aggregator.addNationality(fixAlphaOnlyField(natOnly));
@@ -331,6 +347,7 @@ class SessionOcrHandlerConsensus {
       // }
 
       // log("${updatedSession.step} ${updatedSession.logDetails??''}");
+
       return aggregator.build();
     } catch (e) {
       if (e is Error) {
@@ -435,3 +452,8 @@ String fixAlphaOnlyField(String value) {
   final map = {'0': 'O', '1': 'I', '5': 'S', '8': 'B', '6': 'G'};
   return value.toUpperCase().split('').map((c) => map[c] ?? c).join();
 }
+
+/// Finds the most frequent 2-char prefixes among lines where:
+/// - the line has at least 5 chars
+/// - chars 3–5 (index 2..4) equal [last3]
+/// Ties are returned as multiple items. Set [caseSensitive] if needed.
