@@ -611,13 +611,14 @@ class OcrMrzAggregator {
       lastName = mask(lastName);
     }
 
+
     if (_type == DocumentStandardType.td1) {
       String line1 = "${_pickStr(_docCode)}${_pickStr(_issuing)}${_pickStr(_docNo)}${_pickStr(_numCheck)}".padRight(30, "<");
       String line2 = "${_pickStr(_birth)}${_pickStr(_birthCheck)}${_pickStr(_sex)}${_pickStr(_expiry)}${_pickStr(_expCheck)}${_pickStr(_nat)}".padRight(30, "<");
-      String line3 = MrzNameFixer.fixNameField("${lastName}<<${firstName}").padRight(30, "<");
+      String line3 = "${lastName}<<${firstName}".padRight(30, "<");
       lines.addAll([line1, line2, line3]);
     } else if (_type == DocumentStandardType.td2 || _type == DocumentStandardType.td3) {
-      String line1 = "${_pickStr(_docCode)}${_pickStr(_issuing)}${MrzNameFixer.fixNameField("${lastName}<<${firstName}")}".padRight(44, "<");
+      String line1 = "${_pickStr(_docCode)}${_pickStr(_issuing)}${"${lastName}<<${firstName}"}".padRight(44, "<");
       String line2 = "${_pickStr(_docNo)?.padRight(9,"<")}${_pickStr(_numCheck)}${_pickStr(_nat)}${_pickStr(_birth)}${_pickStr(_birthCheck)}${_pickStr(_sex)}${_pickStr(_expiry)}${_pickStr(_expCheck)}".padRight(44, "<");
       lines.addAll([line1, line2]);
     }

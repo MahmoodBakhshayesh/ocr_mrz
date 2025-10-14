@@ -159,7 +159,12 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
               widget.onConsensusChanged?.call(newCon);
               if(cameraKitPlusController._aggregator.value.matchValidationCount(widget.countValidation,widget.setting ?? OcrMrzSetting())) {
                 if (newCon.toResult().matchSetting(widget.setting ?? OcrMrzSetting())) {
-                  widget.onFoundMrz(newCon.toResult());
+                  final result = newCon.toResult();
+                  result.line1 = cameraKitPlusController.getAggregator.buildMrz()[0];
+                  result.line2 = cameraKitPlusController.getAggregator.buildMrz()[1];
+                  result.line3 =cameraKitPlusController.getAggregator.buildMrz().length>2? cameraKitPlusController.getAggregator.buildMrz()[2]:null;
+                  widget.onFoundMrz(result);
+                  widget.controller?.resetSession();
                 }
               }
               setState(() {});
