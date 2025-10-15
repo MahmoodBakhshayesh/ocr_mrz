@@ -604,8 +604,16 @@ class OcrMrzAggregator {
     String? _pickStr(MajorityCounter<String> c) => (c.top()?.$1) ?? '';
     int _pickCnt(MajorityCounter<String> c) => c.top()?.$2 ?? 0;
     final List<String> lines = [];
-    var firstName = _pickStr(_fname)?.replaceAll(" ", "<") ?? '';
-    var lastName = _pickStr(_lname)?.replaceAll(" ", "<") ?? '';
+    var firstName =fixName( _pickStr(_fname)?.replaceAll(" ", "<") ?? '');
+    var lastName =fixName( _pickStr(_lname)?.replaceAll(" ", "<") ?? '');
+    if(firstName.trim().isEmpty && lastName.contains("<")){
+      firstName = lastName.split("<").last;
+      lastName = lastName.replaceFirst("<${firstName}", "");
+    }
+    if(lastName.trim().isEmpty && firstName.contains("<")){
+      lastName = firstName.split("<").first;
+      firstName = firstName.replaceFirst("${lastName}<", "");
+    }
     if (hideName) {
       firstName = mask(firstName);
       lastName = mask(lastName);
@@ -613,12 +621,12 @@ class OcrMrzAggregator {
 
 
     if (_type == DocumentStandardType.td1) {
-      String line1 = "${_pickStr(_docCode)}${_pickStr(_issuing)}${_pickStr(_docNo)}${_pickStr(_numCheck)}".padRight(30, "<");
+      String line1 = "${_pickStr(_docCode)?.padRight(2,"<")}${_pickStr(_issuing)}${_pickStr(_docNo)}${_pickStr(_numCheck)}".padRight(30, "<");
       String line2 = "${_pickStr(_birth)}${_pickStr(_birthCheck)}${_pickStr(_sex)}${_pickStr(_expiry)}${_pickStr(_expCheck)}${_pickStr(_nat)}".padRight(30, "<");
       String line3 = "${lastName}<<${firstName}".padRight(30, "<");
       lines.addAll([line1, line2, line3]);
     } else if (_type == DocumentStandardType.td2 || _type == DocumentStandardType.td3) {
-      String line1 = "${_pickStr(_docCode)}${_pickStr(_issuing)}${"${lastName}<<${firstName}"}".padRight(44, "<");
+      String line1 = "${_pickStr(_docCode)?.padRight(2,"<")}${_pickStr(_issuing)}${"${lastName}<<${firstName}"}".padRight(44, "<");
       String line2 = "${_pickStr(_docNo)?.padRight(9,"<")}${_pickStr(_numCheck)}${_pickStr(_nat)}${_pickStr(_birth)}${_pickStr(_birthCheck)}${_pickStr(_sex)}${_pickStr(_expiry)}${_pickStr(_expCheck)}".padRight(44, "<");
       lines.addAll([line1, line2]);
     }
@@ -627,6 +635,42 @@ class OcrMrzAggregator {
 
   String mask(String input) {
     return '*' * input.length;
+  }
+  /// Fix a name string where spaces should be `<`.
+  /// Steps:
+  /// - Uppercase
+  /// - Convert '1' to '<'
+  /// - Remove any char not A–Z or '<'
+  /// - Replace runs of C/K (>=2) acting as separators with '<'
+  /// - Collapse multiple '<' to single
+  /// - Remove tokens shorter than [minTokenLen] (default 2 -> removes 1-letter parts)
+  ///
+  String fixName(String input, {int minTokenLen = 2}) {
+    if (input.trim().isEmpty) return '';
+
+    // Uppercase & convert common OCR separator '1' to '<'
+    String s = input.toUpperCase().replaceAll('1', '<');
+
+    // Keep only A–Z and '<'
+    s = s.replaceAll(RegExp(r'[^A-Z<]'), '');
+
+    // Replace runs of C/K used as separators (>=2) with '<'
+    // at string start, between separators, or at end.
+    // Start or after '<'
+    s = s.replaceAll(RegExp(r'(?<=^|<)[CK]{2,}(?=$|<)'), '<');
+
+    // Collapse multiple '<' to a single '<'
+    s = s.replaceAll(RegExp(r'<{2,}'), '<');
+
+    // Split by '<', strip non-letters in each (paranoid), drop short tokens
+    final parts = s
+        .split('<')
+        .map((t) => t.replaceAll(RegExp(r'[^A-Z]'), ''))
+        .where((t) => t.length >= minTokenLen)
+        .toList();
+
+    if (parts.isEmpty) return '';
+    return parts.join('<');
   }
 
   void reset() {
