@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'package:camera_kit_plus/camera_kit_ocr_plus_view.dart';
 import 'package:ocr_mrz/doc_code_validator.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart';
+import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 import 'package:ocr_mrz/travel_doc_util.dart';
 
 import 'issue_date_guess.dart';
@@ -438,7 +439,7 @@ class MyOcrHandler {
       if (name != null) {
         firstName = name.givenNames.join(" ");
         lastName = name.surname;
-        validation.nameValid = name.validateNames(otherLines);
+        validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact));
       }
 
 

@@ -21,6 +21,26 @@ enum ParseAlgorithm {
     }
   }
 }
+
+enum NameValidationMode {
+  none,
+  contain,
+  exact;
+
+  @override
+  toString(){
+    switch(this){
+
+      case NameValidationMode.none:
+        return "None";
+      case NameValidationMode.contain:
+        return "Contain";
+      case NameValidationMode.exact:
+        return "Match";
+    }
+  }
+}
+
 @immutable
 class OcrMrzSetting {
   final bool validateDocNumberValid;
@@ -36,6 +56,7 @@ class OcrMrzSetting {
   final int rotation; // degrees (0..359)
   final bool macro;
   final ParseAlgorithm algorithm;
+  final NameValidationMode nameValidationMode;
 
   const OcrMrzSetting({
     this.validateDocNumberValid = true,
@@ -51,6 +72,7 @@ class OcrMrzSetting {
     this.rotation = 0,
     this.macro = true,
     this.algorithm = ParseAlgorithm.method2,
+    this.nameValidationMode = NameValidationMode.none,
   });
 
   OcrMrzSetting copyWith({
@@ -67,6 +89,7 @@ class OcrMrzSetting {
     int? rotation,
     bool? macro,
     ParseAlgorithm? algorithm,
+    NameValidationMode? nameValidationMode,
   }) {
     return OcrMrzSetting(
       validateDocNumberValid: validateDocNumberValid ?? this.validateDocNumberValid,
@@ -82,6 +105,7 @@ class OcrMrzSetting {
       rotation: (rotation ?? this.rotation) % 360,
       macro: macro ?? this.macro,
       algorithm: algorithm ?? this.algorithm,
+      nameValidationMode: nameValidationMode ?? this.nameValidationMode,
     );
   }
 
@@ -101,6 +125,7 @@ class OcrMrzSetting {
       rotation: rot,
       macro: (json['macro'] as bool?) ?? false,
       algorithm:ParseAlgorithm.values.firstWhere((a)=>a.index == json["algorithm"]),
+      nameValidationMode:NameValidationMode.values.firstWhere((a)=>a.index == json["nameValidationMode"]),
     );
   }
 
@@ -118,6 +143,7 @@ class OcrMrzSetting {
     "rotation": rotation,
     "macro": macro,
     "algorithm": algorithm.index,
+    "nameValidationMode": nameValidationMode.index,
   };
 
   @override
@@ -136,6 +162,7 @@ class OcrMrzSetting {
               validateNationality == other.validateNationality &&
               rotation == other.rotation &&
               algorithm == other.algorithm &&
+              nameValidationMode == other.nameValidationMode &&
               macro == other.macro;
 
   @override
@@ -153,6 +180,7 @@ class OcrMrzSetting {
     rotation,
     macro,
     algorithm,
+    nameValidationMode,
   );
 
   @override
@@ -160,7 +188,7 @@ class OcrMrzSetting {
       'OcrMrzSetting(macro:$macro, rotation:$rotation, doc:$validateDocNumberValid, code:$validationDocumentCode, '
           'birth:$validateBirthDateValid, exp:$validateExpiryDateValid, pn:$validatePersonalNumberValid, '
           'final:$validateFinalCheckValid, names:$validateNames, len:$validateLinesLength, '
-          'country:$validateCountry, nat:$validateNationality) alg:${algorithm.name}';
+          'country:$validateCountry, nat:$validateNationality) alg:${algorithm.name} nameValidationMode:$nameValidationMode';
 }
 
 extension MrzValidationExt on OcrMrzResult {

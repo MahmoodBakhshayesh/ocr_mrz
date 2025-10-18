@@ -6,6 +6,7 @@ import 'package:ocr_mrz/aggregator.dart';
 import 'package:ocr_mrz/doc_code_validator.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart';
 import 'package:ocr_mrz/my_name_handler.dart';
+import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 import 'package:ocr_mrz/session_status_class.dart';
 import 'package:ocr_mrz/travel_doc_util.dart';
 
@@ -14,7 +15,7 @@ import 'enums.dart';
 final _dateSexRe = RegExp(r'(\d{6})(\d)([MFX])(\d{6})(\d)', caseSensitive: false);
 
 class SessionOcrHandlerConsensus {
-  OcrMrzConsensus handleSession(OcrMrzAggregator aggregator, OcrData ocr) {
+  OcrMrzConsensus handleSession(OcrMrzAggregator aggregator, OcrData ocr,OcrMrzSetting setting) {
     try {
       // final a = "AM480420";
       final a = "ANG80420<";
@@ -53,13 +54,12 @@ class SessionOcrHandlerConsensus {
           aggregator.addBirthCheck(birthCheck!);
           aggregator.addSex(sexStr!);
           aggregator.setStep(2);
-
         }
       }
 
       updatedSession = aggregator.buildStatus();
 
-      if ((updatedSession.step??0) >= 2) {
+      if ((updatedSession.step ?? 0) >= 2) {
         DocumentStandardType? type;
         // log("date sex str - > ${updatedSession.dateSexStr}");
         final parts = updatedSession.dateSexStr!.split(RegExp(r'[^0-9]+'));
@@ -84,11 +84,10 @@ class SessionOcrHandlerConsensus {
               line1 = lines[index - 1];
             }
             updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in ${countryBeforeBirthMatch.group(0)}$birth");
-
-          }else{
-            if(l.contains(birth)){
+          } else {
+            if (l.contains(birth)) {
               String beforeBirth = l.split(birth).first;
-              if(beforeBirth.length>2){
+              if (beforeBirth.length > 2) {
                 String natCondidate = beforeBirth.substring(beforeBirth.length - 3);
                 natCondidate = fixAlphaOnlyField(natCondidate);
                 type = l.length < 40 ? DocumentStandardType.td2 : DocumentStandardType.td3;
@@ -100,12 +99,11 @@ class SessionOcrHandlerConsensus {
               }
             }
 
-
             // if(normalize(l).contains(birth) || true) {
             //   log("not Found Valid Nationality before ${birth} in ${normalize(l)}");
             // }
           }
-          if(nationalityStr == null) {
+          if (nationalityStr == null) {
             final countryAfterExpMatch = countryAfterExpReg.firstMatch(normalize(l));
             if (countryAfterExpMatch != null) {
               // log("we have match after ${countryAfterExpMatch.group(1)}");
@@ -132,7 +130,6 @@ class SessionOcrHandlerConsensus {
               var currentVal = aggregator.validation;
               currentVal.nationalityValid = isValidMrzCountry(nationalityStr) || isValidMrzCountry(fixedNationalityStr);
 
-
               aggregator.addNationality(nationalityStr);
               aggregator.validation = currentVal;
 
@@ -158,14 +155,13 @@ class SessionOcrHandlerConsensus {
         }
       }
       updatedSession = aggregator.buildStatus();
-      if ((updatedSession.step??0) >= 3) {
+      if ((updatedSession.step ?? 0) >= 3) {
         String? numberStr;
         if (updatedSession.type == DocumentStandardType.td1) {
           String dateStart = updatedSession.birthDate!;
           for (var l in lines) {
             int index = lines.indexOf(l);
             if (l.startsWith(dateStart)) {
-
               var currentVal = aggregator.validation;
 
               String firstLineGuess = normalize(lines[index - 1]);
@@ -195,8 +191,7 @@ class SessionOcrHandlerConsensus {
                   if (validDocNumber) {
                     aggregator.addDocNum(numberStr);
                     aggregator.addNumCheck(numberStrCheck);
-                    aggregator.addNumWithCheck(numberStrCheck+numberStrCheck);
-
+                    aggregator.addNumWithCheck(numberStrCheck + numberStrCheck);
 
                     var currentVal = aggregator.validation;
                     currentVal.docNumberValid = true;
@@ -227,7 +222,6 @@ class SessionOcrHandlerConsensus {
               var currentVal = aggregator.validation;
               currentVal.docNumberValid = docNumberValid;
 
-
               String firstLineGuess = lines[index - 1];
               if (firstLineGuess.length > 5) {
                 String firstFiveChars = firstLineGuess.substring(0, 5);
@@ -235,8 +229,6 @@ class SessionOcrHandlerConsensus {
                 String countryCode = firstFiveChars.substring(2, 5);
                 bool validCode = DocumentCodeHelper.isValid(docCode);
                 bool validCountry = isValidMrzCountry(countryCode);
-
-
 
                 if (validCode && validCountry) {
                   currentVal.countryValid = validCountry;
@@ -251,44 +243,40 @@ class SessionOcrHandlerConsensus {
                     aggregator.addNumWithCheck(numberStr + numberStrCheck);
                   }
 
-
                   aggregator.setStep(4);
                   // aggregator.addDocNum(numberStr);
                   // aggregator.addNumCheck(numberStrCheck);
                   aggregator.addDocCode(docCode);
                   aggregator.addCountry(countryCode);
                   aggregator.addNationality(fixAlphaOnlyField(natOnly));
-
                 }
               }
-
             }
-
-
           }
         }
       }
 
-      updatedSession= aggregator.buildStatus();
-      if ((updatedSession.step??0) >= 4) {
+      updatedSession = aggregator.buildStatus();
+      if ((updatedSession.step ?? 0) >= 4) {
         if (updatedSession.type == DocumentStandardType.td1) {
-
-          int line2Index = lines.indexWhere((a)=>a.contains(updatedSession.birthDate!));
-          if(line2Index != -1 && lines.length>= line2Index){
-            String line3 = fixAlphaOnlyField(lines[line2Index+1]);
+          int line2Index = lines.indexWhere((a) => a.contains(updatedSession.birthDate!));
+          if (line2Index != -1 && lines.length >= line2Index) {
+            String line3 = fixAlphaOnlyField(lines[line2Index + 1]);
             MrzName? name = parseNamesTd1(line3);
             String firstName = name.givenNames.join(" ");
             String lastName = name.surname;
             List<String> otherLines = [...lines.where((a) => a != line3).map((a) => normalize(a))];
             var currentVal = aggregator.validation;
-            currentVal.nameValid = name.validateNames(otherLines);
+            currentVal.nameValid = name.validateNames(otherLines,setting);
             aggregator.validation = currentVal;
-            aggregator.addFirstName(firstName);
-            aggregator.addLastName(lastName);
+            if(currentVal.nameValid) {
+              aggregator.addFirstName(firstName);
+              aggregator.addLastName(lastName);
+            }
+
           }
 
-
-            // updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line3: normalize(line3), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
+          // updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line3: normalize(line3), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
         } else {
           String line1Start = updatedSession.docCode! + updatedSession.countryCode!;
 
@@ -299,12 +287,12 @@ class SessionOcrHandlerConsensus {
               String lastName = name.surname;
               List<String> otherLines = [...lines.where((a) => a != l).map((a) => normalize(a))];
               var currentVal = aggregator.validation;
-              currentVal.nameValid = name.validateNames(otherLines);
+              currentVal.nameValid = name.validateNames(otherLines,setting);
               aggregator.validation = currentVal;
-              aggregator.addFirstName(firstName);
-              aggregator.addLastName(lastName);
-
-
+              if(currentVal.nameValid) {
+                aggregator.addFirstName(firstName);
+                aggregator.addLastName(lastName);
+              }
               // var currentVal = updatedSession.validation ?? OcrMrzValidation();
               // currentVal.nameValid = name.validateNames(otherLines);
               // updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line1: normalize(l), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");

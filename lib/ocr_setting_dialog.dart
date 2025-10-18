@@ -39,19 +39,19 @@ class _OcrSettingDialogState extends State<OcrSettingDialog> {
                     ),
                   ],
                 ),
-                Row(
-                  children: [
-                    Expanded(child: Text("Lines Length")),
-                    CupertinoSwitch(
-                      value: tmp.validateLinesLength,
-                      onChanged: (a) {
-                        tmp = tmp.copyWith(validateLinesLength: a);
-
-                        setState(() {});
-                      },
-                    ),
-                  ],
-                ),
+                // Row(
+                //   children: [
+                //     Expanded(child: Text("Lines Length")),
+                //     CupertinoSwitch(
+                //       value: tmp.validateLinesLength,
+                //       onChanged: (a) {
+                //         tmp = tmp.copyWith(validateLinesLength: a);
+                //
+                //         setState(() {});
+                //       },
+                //     ),
+                //   ],
+                // ),
                 Row(
                   children: [
                     Expanded(child: Text("Issuing County")),
@@ -186,6 +186,22 @@ class _OcrSettingDialogState extends State<OcrSettingDialog> {
                         children: Map.fromIterable(ParseAlgorithm.values,key: (a)=>a,value:(a)=>Row(children: [Padding(padding: EdgeInsets.symmetric(horizontal: 2), child: Text("${(a as ParseAlgorithm).toString()}"))]),),
                         onValueChanged: (a) {
                           tmp = tmp.copyWith(algorithm: a);
+                          setState(() {});
+                        },
+                      ),
+                    ),
+                  ],
+                ),),
+                Divider(),
+                Padding(padding: EdgeInsets.symmetric(vertical: 4),child: Row(
+                  children: [
+                    Text("Name"),
+                    Expanded(
+                      child: CupertinoSegmentedControl<NameValidationMode>(
+                        groupValue: tmp.nameValidationMode,
+                        children: Map.fromIterable(NameValidationMode.values,key: (a)=>a,value:(a)=>Row(children: [Padding(padding: EdgeInsets.symmetric(horizontal: 2), child: Text("${(a as NameValidationMode).toString()}"))]),),
+                        onValueChanged: (a) {
+                          tmp = tmp.copyWith(nameValidationMode: a);
                           setState(() {});
                         },
                       ),

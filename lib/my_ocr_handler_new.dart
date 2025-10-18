@@ -6,6 +6,7 @@ import 'package:ocr_mrz/mrz_result_class_fix.dart';
 import 'package:ocr_mrz/travel_doc_util.dart';
 
 import 'my_name_handler.dart';
+import 'ocr_mrz_settings_class.dart';
 import 'orc_mrz_log_class.dart';
 
 enum DocumentStandardType { td1, td2, td3 }
@@ -518,7 +519,7 @@ class MyOcrHandlerNew {
               if (name != null) {
                 firstName = name.givenNames.join(" ");
                 lastName = name.surname;
-                validation.nameValid = name.validateNames(otherLines);
+                validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact));
               }
 
               log(validation.toString());
@@ -784,7 +785,7 @@ class MyOcrHandlerNew {
       if (name != null) {
         firstName = name.givenNames.join(" ");
         lastName = name.surname;
-        validation.nameValid = name.validateNames(otherLines);
+        validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact));
       }
 
       log(validation.toString());

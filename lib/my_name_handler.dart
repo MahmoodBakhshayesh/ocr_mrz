@@ -1,5 +1,7 @@
 import 'dart:developer';
 
+import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
+
 import 'my_ocr_handler.dart';
 
 List<String> extractWords(String text) {
@@ -19,17 +21,34 @@ class MrzName {
   String get firstName => givenNames.join(" ");
   String get lastName => surname;
 
-  bool validateNames(Iterable<String> lines) {
-    // log("validate name ${firstName} and ${lastName} in\n ${lines.join("\n")}");
-    List<String> words = [];
-    for (var l in lines) {
-      words.addAll(extractWords(l).map((a) => a.toLowerCase()));
-    }
-    final isFirstNameValid = firstName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
-    final isLastNameValid = lastName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
-    final res = isLastNameValid && isFirstNameValid;
+  bool validateNames(Iterable<String> lines, OcrMrzSetting setting) {
+    if(setting.nameValidationMode == NameValidationMode.none){
+      return true;
+    }else if(setting.nameValidationMode == NameValidationMode.exact){
+      List<String> words = [];
+      for (var l in lines) {
+        words.addAll(extractWords(l).map((a) => a.toLowerCase()));
+      }
+      final isFirstNameValid = firstName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
+      final isLastNameValid = lastName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
+      final res = isLastNameValid && isFirstNameValid;
 
-    return res;
+      return res;
+    }else {
+      List<String> words = [];
+      for (var l in lines) {
+        words.addAll(extractWords(l).map((a) => a.toLowerCase()));
+      }
+      final isFirstNameValid = firstName.toLowerCase().split(" ").every((a) => words.any((b)=>b.contains(a.toLowerCase())));
+      final isLastNameValid = lastName.toLowerCase().split(" ").every((a) => words.any((b)=>b.contains(a.toLowerCase())));
+      final res = isLastNameValid && isFirstNameValid;
+
+      return res;
+    }
+
+
+      // log("validate name ${firstName} and ${lastName} in\n ${lines.join("\n")}");
+
   }
 }
 

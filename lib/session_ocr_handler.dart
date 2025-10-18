@@ -9,6 +9,7 @@ import 'package:ocr_mrz/session_status_class.dart';
 import 'package:ocr_mrz/travel_doc_util.dart';
 
 import 'enums.dart';
+import 'ocr_mrz_settings_class.dart';
 
 final _dateSexRe = RegExp(r'(\d{6})(\d)([MFX])(\d{6})(\d)', caseSensitive: false);
 
@@ -311,7 +312,7 @@ class SessionOcrHandler {
             String lastName = name.surname;
             List<String> otherLines = [...lines.where((a) => a != line3).map((a) => normalize(a))];
             var currentVal = updatedSession.validation ?? OcrMrzValidation();
-            currentVal.nameValid = name.validateNames(otherLines);
+            currentVal.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact));
             updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line3: normalize(line3), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
           }
         } else {
@@ -324,7 +325,7 @@ class SessionOcrHandler {
               String lastName = name.surname;
               List<String> otherLines = [...lines.where((a) => a != l).map((a) => normalize(a))];
               var currentVal = updatedSession.validation ?? OcrMrzValidation();
-              currentVal.nameValid = name.validateNames(otherLines);
+              currentVal.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact));
               updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line1: normalize(l), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
             }
           }
