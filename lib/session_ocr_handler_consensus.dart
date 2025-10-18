@@ -265,7 +265,9 @@ class SessionOcrHandlerConsensus {
             MrzName? name = parseNamesTd1(line3);
             String firstName = name.givenNames.join(" ");
             String lastName = name.surname;
-            List<String> otherLines = [...lines.where((a) => a != line3).map((a) => normalize(a))];
+            // List<String> otherLines = [...lines.where((a) => a != line3).map((a) => normalize(a))];
+            List<String> otherLines = [...lines.where((a) => a != line3)];
+            // log(otherLines.join("\n"));
             var currentVal = aggregator.validation;
             currentVal.nameValid = name.validateNames(otherLines,setting);
             aggregator.validation = currentVal;
@@ -285,7 +287,8 @@ class SessionOcrHandlerConsensus {
               MrzName? name = parseNamesTd3OrTd2(l);
               String firstName = name.givenNames.join(" ");
               String lastName = name.surname;
-              List<String> otherLines = [...lines.where((a) => a != l).map((a) => normalize(a))];
+              // List<String> otherLines = [...lines.where((a) => a != l).map((a) => normalize(a))];
+              List<String> otherLines = [...lines.where((a) => a != l)];
               var currentVal = aggregator.validation;
               currentVal.nameValid = name.validateNames(otherLines,setting);
               aggregator.validation = currentVal;

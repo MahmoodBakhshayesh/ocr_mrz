@@ -4,10 +4,23 @@ import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 
 import 'my_ocr_handler.dart';
 
+// List<String> extractWords(String text) {
+//   final wordRegExp = RegExp(r'\b\w+\b');
+//   return wordRegExp.allMatches(text).map((match) => match.group(0)!).toList();
+// }
+
 List<String> extractWords(String text) {
+  // Replace case transitions (e.g., a lowercase letter followed by an uppercase) with a space
+  final separated = text.replaceAllMapped(
+    RegExp(r'([a-z])([A-Z])'),
+        (match) => '${match.group(1)} ${match.group(2)}',
+  );
+
+  // Now extract all word-like tokens
   final wordRegExp = RegExp(r'\b\w+\b');
-  return wordRegExp.allMatches(text).map((match) => match.group(0)!).toList();
+  return wordRegExp.allMatches(separated).map((m) => m.group(0)!).toList();
 }
+
 
 class MrzName {
   final String rawSurname; // e.g. "ERIKSSON"
@@ -31,6 +44,8 @@ class MrzName {
       }
       final isFirstNameValid = firstName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
       final isLastNameValid = lastName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
+      // log("lookin for $firstName and $lastName => in ${words.join(", ")}");
+
       final res = isLastNameValid && isFirstNameValid;
 
       return res;
