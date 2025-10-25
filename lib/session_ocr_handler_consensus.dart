@@ -6,6 +6,7 @@ import 'package:ocr_mrz/aggregator.dart';
 import 'package:ocr_mrz/doc_code_validator.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart';
 import 'package:ocr_mrz/my_name_handler.dart';
+import 'package:ocr_mrz/name_validation_data_class.dart';
 import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 import 'package:ocr_mrz/session_status_class.dart';
 import 'package:ocr_mrz/travel_doc_util.dart';
@@ -15,7 +16,7 @@ import 'enums.dart';
 final _dateSexRe = RegExp(r'(\d{6})(\d)([MFX])(\d{6})(\d)', caseSensitive: false);
 
 class SessionOcrHandlerConsensus {
-  OcrMrzConsensus handleSession(OcrMrzAggregator aggregator, OcrData ocr,OcrMrzSetting setting) {
+  OcrMrzConsensus handleSession(OcrMrzAggregator aggregator, OcrData ocr,OcrMrzSetting setting,List<NameValidationData> names) {
     try {
       // final a = "AM480420";
       final a = "ANG80420<";
@@ -269,7 +270,7 @@ class SessionOcrHandlerConsensus {
             List<String> otherLines = [...lines.where((a) => a != line3)];
             // log(otherLines.join("\n"));
             var currentVal = aggregator.validation;
-            currentVal.nameValid = name.validateNames(otherLines,setting);
+            currentVal.nameValid = name.validateNames(otherLines,setting,names);
             aggregator.validation = currentVal;
             if(currentVal.nameValid) {
               aggregator.addFirstName(firstName);
@@ -290,7 +291,7 @@ class SessionOcrHandlerConsensus {
               // List<String> otherLines = [...lines.where((a) => a != l).map((a) => normalize(a))];
               List<String> otherLines = [...lines.where((a) => a != l)];
               var currentVal = aggregator.validation;
-              currentVal.nameValid = name.validateNames(otherLines,setting);
+              currentVal.nameValid = name.validateNames(otherLines,setting,names);
               aggregator.validation = currentVal;
               if(currentVal.nameValid) {
                 aggregator.addFirstName(firstName);

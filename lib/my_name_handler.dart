@@ -1,5 +1,6 @@
 import 'dart:developer';
 
+import 'package:ocr_mrz/name_validation_data_class.dart';
 import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 
 import 'my_ocr_handler.dart';
@@ -34,7 +35,7 @@ class MrzName {
   String get firstName => givenNames.join(" ");
   String get lastName => surname;
 
-  bool validateNames(Iterable<String> lines, OcrMrzSetting setting) {
+  bool validateNames(Iterable<String> lines, OcrMrzSetting setting,List<NameValidationData> name) {
     if(setting.nameValidationMode == NameValidationMode.none){
       return true;
     }else if(setting.nameValidationMode == NameValidationMode.exact){
@@ -47,8 +48,8 @@ class MrzName {
       // log("lookin for $firstName and $lastName => in ${words.join(", ")}");
 
       final res = isLastNameValid && isFirstNameValid;
-
-      return res;
+      final nameValidation = name.any((a)=>"${a.firstName} ${a.lastName} ${a.middleName??''}".toUpperCase().split(" ").contains(firstName.toUpperCase()) || "${a.firstName} ${a.lastName} ${a.middleName??''}".toUpperCase().split(" ").contains(lastName.toUpperCase()));
+      return res || nameValidation;
     }else {
       List<String> words = [];
       for (var l in lines) {
@@ -58,7 +59,8 @@ class MrzName {
       final isLastNameValid = lastName.toLowerCase().split(" ").every((a) => words.any((b)=>b.contains(a.toLowerCase())));
       final res = isLastNameValid && isFirstNameValid;
 
-      return res;
+      final nameValidation = name.any((a)=>"${a.firstName} ${a.lastName} ${a.middleName??''}".toUpperCase().split(" ").any((b)=>b.contains(firstName.toUpperCase())) || "${a.firstName} ${a.lastName} ${a.middleName??''}".toUpperCase().split(" ").any((b)=>b.contains(lastName.toUpperCase())));
+      return res || nameValidation;
     }
 
 

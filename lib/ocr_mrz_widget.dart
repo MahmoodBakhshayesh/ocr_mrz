@@ -154,7 +154,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
               OcrMrzLog log = OcrMrzLog(rawText: c.text, rawMrzLines: c.lines.where((a) => a.text.contains("<")).map((a) => a.text).toList(), fixedMrzLines: [], validation: OcrMrzValidation(), extractedData: {});
               widget.mrzLogger?.call(log);
             } else {
-              final newCon = SessionOcrHandlerConsensus().handleSession(cameraKitPlusController._aggregator.value, c,widget.setting ?? OcrMrzSetting());
+              final newCon = SessionOcrHandlerConsensus().handleSession(cameraKitPlusController._aggregator.value, c,widget.setting ?? OcrMrzSetting(),widget.nameValidations??[]);
               improving = newCon;
               widget.onConsensusChanged?.call(newCon);
               if(cameraKitPlusController._aggregator.value.matchValidationCount(widget.countValidation,widget.setting ?? OcrMrzSetting())) {

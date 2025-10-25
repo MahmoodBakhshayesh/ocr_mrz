@@ -519,7 +519,7 @@ class MyOcrHandlerNew {
               if (name != null) {
                 firstName = name.givenNames.join(" ");
                 lastName = name.surname;
-                validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact));
+                validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
               }
 
               log(validation.toString());
@@ -785,7 +785,7 @@ class MyOcrHandlerNew {
       if (name != null) {
         firstName = name.givenNames.join(" ");
         lastName = name.surname;
-        validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact));
+        validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
       }
 
       log(validation.toString());

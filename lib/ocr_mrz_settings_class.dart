@@ -65,7 +65,7 @@ class OcrMrzSetting {
     this.validationDocumentCode = true,
     this.validatePersonalNumberValid = false,
     this.validateFinalCheckValid = false,
-    this.validateNames = false,
+    this.validateNames = true,
     this.validateLinesLength = false,
     this.validateCountry = true,
     this.validateNationality = true,
