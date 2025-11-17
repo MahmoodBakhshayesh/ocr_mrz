@@ -16,7 +16,7 @@ import 'enums.dart';
 final _dateSexRe = RegExp(r'(\d{6})(\d)([MFX])(\d{6})(\d)', caseSensitive: false);
 
 class SessionOcrHandlerConsensus {
-  OcrMrzConsensus handleSession(OcrMrzAggregator aggregator, OcrData ocr,OcrMrzSetting setting,List<NameValidationData> names) {
+  OcrMrzConsensus handleSession(OcrMrzAggregator aggregator, OcrData ocr, OcrMrzSetting setting, List<NameValidationData> names) {
     try {
       // final a = "AM480420";
       final a = "ANG80420<";
@@ -60,6 +60,15 @@ class SessionOcrHandlerConsensus {
 
       updatedSession = aggregator.buildStatus();
 
+      if (_dateSexRe.hasMatch(ocr.text)) {
+        final dateSexMatchCheck = _dateSexRe.firstMatch(secondLineGuess);
+        String dateSexCheckStr = dateSexMatchCheck!.group(0)!;
+        if (updatedSession.dateSexStr != dateSexCheckStr){
+          log("new doc detected reset");
+          aggregator.reset();
+        }
+      }
+
       if ((updatedSession.step ?? 0) >= 2) {
         DocumentStandardType? type;
         // log("date sex str - > ${updatedSession.dateSexStr}");
@@ -87,7 +96,9 @@ class SessionOcrHandlerConsensus {
             updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in ${countryBeforeBirthMatch.group(0)}$birth");
           } else {
             if (l.contains(birth)) {
-              String beforeBirth = l.split(birth).first;
+              String beforeBirth = l
+                  .split(birth)
+                  .first;
               if (beforeBirth.length > 2) {
                 String natCondidate = beforeBirth.substring(beforeBirth.length - 3);
                 natCondidate = fixAlphaOnlyField(natCondidate);
@@ -136,7 +147,14 @@ class SessionOcrHandlerConsensus {
 
               aggregator.setType(type);
               aggregator.setStep(3);
-              updatedSession = updatedSession.copyWith(step: 3, details: 'Found nationality', nationality: nationalityStr, type: type, line1: line1, line2: normalize(l), line3: line3, validation: currentVal);
+              updatedSession = updatedSession.copyWith(step: 3,
+                  details: 'Found nationality',
+                  nationality: nationalityStr,
+                  type: type,
+                  line1: line1,
+                  line2: normalize(l),
+                  line3: line3,
+                  validation: currentVal);
             }
 
             // final fixedNationalityStr = fixAlphaOnlyField(nationalityStr);
@@ -147,7 +165,14 @@ class SessionOcrHandlerConsensus {
               aggregator.validation = currentVal;
               aggregator.setType(type);
               aggregator.setStep(3);
-              updatedSession = updatedSession.copyWith(step: 3, details: 'Found nationality', nationality: nationalityStr, type: type, line1: line1, line2: normalize(l), line3: line3, validation: currentVal);
+              updatedSession = updatedSession.copyWith(step: 3,
+                  details: 'Found nationality',
+                  nationality: nationalityStr,
+                  type: type,
+                  line1: line1,
+                  line2: normalize(l),
+                  line3: line3,
+                  validation: currentVal);
             }
           } else {
             updatedSession = updatedSession.copyWith(logDetails: "Did not found valid Nationality before $birth or after $exp in\n${lines.where((a) => a.contains(birth) || a.contains(exp)).map((b) => normalize(b)).join("\n")}");
@@ -270,13 +295,12 @@ class SessionOcrHandlerConsensus {
             List<String> otherLines = [...lines.where((a) => a != line3)];
             // log(otherLines.join("\n"));
             var currentVal = aggregator.validation;
-            currentVal.nameValid = name.validateNames(otherLines,setting,names);
+            currentVal.nameValid = name.validateNames(otherLines, setting, names);
             aggregator.validation = currentVal;
-            if(currentVal.nameValid) {
+            if (currentVal.nameValid) {
               aggregator.addFirstName(firstName);
               aggregator.addLastName(lastName);
             }
-
           }
 
           // updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line3: normalize(line3), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
@@ -291,9 +315,9 @@ class SessionOcrHandlerConsensus {
               // List<String> otherLines = [...lines.where((a) => a != l).map((a) => normalize(a))];
               List<String> otherLines = [...lines.where((a) => a != l)];
               var currentVal = aggregator.validation;
-              currentVal.nameValid = name.validateNames(otherLines,setting,names);
+              currentVal.nameValid = name.validateNames(otherLines, setting, names);
               aggregator.validation = currentVal;
-              if(currentVal.nameValid) {
+              if (currentVal.nameValid) {
                 aggregator.addFirstName(firstName);
                 aggregator.addLastName(lastName);
               }
@@ -353,7 +377,9 @@ class SessionOcrHandlerConsensus {
     line = line.replaceAll(" ", '');
     line = line.replaceAll("«", "<<");
     final b = StringBuffer();
-    for (final rune in line.toUpperCase().runes) {
+    for (final rune in line
+        .toUpperCase()
+        .runes) {
       var ch = String.fromCharCode(rune);
       ch = _normMap[ch] ?? ch;
       final cu = ch.codeUnitAt(0);
@@ -369,7 +395,9 @@ class SessionOcrHandlerConsensus {
   static String normalizeWithLength(String line, {int len = 44}) {
     line = line.replaceAll(" ", '');
     final b = StringBuffer();
-    for (final rune in line.toUpperCase().runes) {
+    for (final rune in line
+        .toUpperCase()
+        .runes) {
       var ch = String.fromCharCode(rune);
       ch = _normMap[ch] ?? ch;
       final cu = ch.codeUnitAt(0);
@@ -429,7 +457,9 @@ DateTime? _parseMrzDate(String yymmdd) {
   // MRZ dates assume:
   // - birth: usually 1900–2029 (but safe to assume <= current year)
   // - expiry: usually 2000–2099
-  final now = DateTime.now().year % 100;
+  final now = DateTime
+      .now()
+      .year % 100;
 
   final fullYear = year <= now + 10 ? 2000 + year : 1900 + year;
 
