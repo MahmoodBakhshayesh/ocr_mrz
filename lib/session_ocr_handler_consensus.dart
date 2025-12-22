@@ -21,13 +21,13 @@ class SessionOcrHandlerConsensus {
       // final a = "AM480420";
       final a = "ANG80420<";
       final b = "Y62927483";
-      // log("digit check of ${a} ==> ${_computeMrzCheckDigit(a)}");
-      // log("digit check of ${b} ==> ${_computeMrzCheckDigit(b)}");
+      // myLog("digit check of ${a} ==> ${_computeMrzCheckDigit(a)}");
+      // myLog("digit check of ${b} ==> ${_computeMrzCheckDigit(b)}");
       final List<String> lines = ocr.lines.map((a) => a.text).toList();
       final List<String> baseLines = List<String>.of(ocr.lines.map((a) => a.text).toList());
       aggregator.addFrameLines(lines);
       var updatedSession = aggregator.buildStatus();
-      // log("handleSession ${updatedSession.step}");
+      // myLog("handleSession ${updatedSession.step}");
       // if (updatedSession.step == 1) {
       String secondLineGuess = lines.firstWhere((a) => _dateSexRe.hasMatch(a), orElse: () => '');
       if (secondLineGuess.isNotEmpty) {
@@ -64,19 +64,19 @@ class SessionOcrHandlerConsensus {
         final dateSexMatchCheck = _dateSexRe.firstMatch(secondLineGuess);
         String dateSexCheckStr = dateSexMatchCheck!.group(0)!;
         if (updatedSession.dateSexStr != dateSexCheckStr){
-          log("new doc detected reset");
+          myLog("new doc detected reset");
           aggregator.reset();
         }
       }
 
       if ((updatedSession.step ?? 0) >= 2) {
         DocumentStandardType? type;
-        // log("date sex str - > ${updatedSession.dateSexStr}");
+        // myLog("date sex str - > ${updatedSession.dateSexStr}");
         final parts = updatedSession.dateSexStr!.split(RegExp(r'[^0-9]+'));
         String? nationalityStr;
         String birth = parts[0];
         String exp = parts[1];
-        // log("look before $birth or after $exp  ${updatedSession.line2??''}");
+        // myLog("look before $birth or after $exp  ${updatedSession.line2??''}");
         // final countryBeforeBirthReg = RegExp(r'[A-Za-z]{3}' + birth);
         final countryBeforeBirthReg = RegExp(r'([A-Za-z0-9]{3})(?=' + RegExp.escape(birth) + r')');
         final countryAfterExpReg = RegExp(RegExp.escape(exp) + r'([A-Za-z]{3})');
@@ -87,7 +87,7 @@ class SessionOcrHandlerConsensus {
           l = normalize(l);
           final countryBeforeBirthMatch = countryBeforeBirthReg.firstMatch(normalize(l));
           if (countryBeforeBirthMatch != null) {
-            // log("we have before ${countryBeforeBirthMatch.group(0)}");
+            // myLog("we have before ${countryBeforeBirthMatch.group(0)}");
             type = l.length < 40 ? DocumentStandardType.td2 : DocumentStandardType.td3;
             nationalityStr = countryBeforeBirthMatch.group(0)!;
             if (index != 0) {
@@ -112,13 +112,13 @@ class SessionOcrHandlerConsensus {
             }
 
             // if(normalize(l).contains(birth) || true) {
-            //   log("not Found Valid Nationality before ${birth} in ${normalize(l)}");
+            //   myLog("not Found Valid Nationality before ${birth} in ${normalize(l)}");
             // }
           }
           if (nationalityStr == null) {
             final countryAfterExpMatch = countryAfterExpReg.firstMatch(normalize(l));
             if (countryAfterExpMatch != null) {
-              // log("we have match after ${countryAfterExpMatch.group(1)}");
+              // myLog("we have match after ${countryAfterExpMatch.group(1)}");
               type = DocumentStandardType.td1;
               nationalityStr = countryAfterExpMatch.group(1)!;
               if (index != 0) {
@@ -130,13 +130,13 @@ class SessionOcrHandlerConsensus {
               updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in $exp${countryAfterExpMatch.group(0)}");
             } else {
               // if(normalize(l).contains(exp) || true) {
-              //   log("not Found Valid Nationality after ${exp} in ${normalize(l)}");
+              //   myLog("not Found Valid Nationality after ${exp} in ${normalize(l)}");
               // }
             }
           }
 
           if (nationalityStr != null) {
-            // log("potensial nat ${nationalityStr}");
+            myLog("potensial nat ${nationalityStr}");
             final fixedNationalityStr = fixAlphaOnlyField(nationalityStr);
             if (isValidMrzCountry(nationalityStr) || isValidMrzCountry(fixedNationalityStr)) {
               var currentVal = aggregator.validation;
@@ -176,7 +176,7 @@ class SessionOcrHandlerConsensus {
             }
           } else {
             updatedSession = updatedSession.copyWith(logDetails: "Did not found valid Nationality before $birth or after $exp in\n${lines.where((a) => a.contains(birth) || a.contains(exp)).map((b) => normalize(b)).join("\n")}");
-            // log("not valid nat ${nationalityStr} in ${lines.map((a) => normalize(a)).join("\n")}");
+            // myLog("not valid nat ${nationalityStr} in ${lines.map((a) => normalize(a)).join("\n")}");
           }
         }
       }
@@ -184,6 +184,7 @@ class SessionOcrHandlerConsensus {
       if ((updatedSession.step ?? 0) >= 3) {
         String? numberStr;
         if (updatedSession.type == DocumentStandardType.td1) {
+          myLog("1-- ${updatedSession.step}");
           String dateStart = updatedSession.birthDate!;
           for (var l in lines) {
             int index = lines.indexOf(l);
@@ -237,11 +238,20 @@ class SessionOcrHandlerConsensus {
 
           // final numberBeforeNatReg = RegExp(r'^(.*?)(?=' + RegExp.escape(natBirth) + r')');
           final numberBeforeNatReg = RegExp(r'([A-Z0-9<]{9,12})(\d)(?=' + RegExp.escape(natOnly) + r')');
+          myLog("2 -- ${updatedSession.step}  ${natOnly}");
           for (var l in lines) {
             int index = lines.indexOf(l);
-            final numberBeforeNatMatch = numberBeforeNatReg.firstMatch(normalize(l));
+            // final numberBeforeNatMatch = numberBeforeNatReg.firstMatch(normalize(l));
+            var numberBeforeNatMatch = numberBeforeNatReg.firstMatch(normalize(l));
+            if(numberBeforeNatMatch == null){
+              myLog("not found in ${normalize(l)}");
+              numberBeforeNatMatch = numberBeforeNatReg.firstMatch(fixOcrBeforeNatOnly(l,natOnly));
+            }
+            if(numberBeforeNatMatch == null){
+              myLog("still null in ${fixOcrBeforeNatOnly(l,natOnly)}");
+            }
             if (numberBeforeNatMatch != null && index != 0) {
-              // log("we have before ${countryBeforeBirthMatch.group(0)}");
+              myLog("we have before ${numberBeforeNatMatch!.group(0)}");
               numberStr = numberBeforeNatMatch.group(1)!.replaceAll("O", '0').replaceAll("<", '');
               String numberStrCheck = numberBeforeNatMatch.group(2)!;
               bool docNumberValid = _computeMrzCheckDigit(numberStr!) == numberStrCheck;
@@ -293,7 +303,7 @@ class SessionOcrHandlerConsensus {
             String lastName = name.surname;
             // List<String> otherLines = [...lines.where((a) => a != line3).map((a) => normalize(a))];
             List<String> otherLines = [...lines.where((a) => a != line3)];
-            // log(otherLines.join("\n"));
+            // myLog(otherLines.join("\n"));
             var currentVal = aggregator.validation;
             currentVal.nameValid = name.validateNames(otherLines, setting, names);
             aggregator.validation = currentVal;
@@ -352,7 +362,7 @@ class SessionOcrHandlerConsensus {
       //             if(finalCheckValid) {
       //               updatedSession = updatedSession.copyWith(step: 7, details: 'Found Final Check', optional: optionalStr, finalCheck: finalCheckStr);
       //             }else{
-      //               log("final check not valid ==> ${updatedSession.getFinalCheckValue} ${finalCheckStr}");
+      //               myLog("final check not valid ==> ${updatedSession.getFinalCheckValue} ${finalCheckStr}");
       //             }
       //
       //           }
@@ -362,12 +372,12 @@ class SessionOcrHandlerConsensus {
       //   }
       // }
 
-      // log("${updatedSession.step} ${updatedSession.logDetails??''}");
+      // myLog("${updatedSession.step} ${updatedSession.logDetails??''}");
 
       return aggregator.build();
     } catch (e) {
       if (e is Error) {
-        log("$e\n${e.stackTrace}");
+        myLog("$e\n${e.stackTrace}");
       }
       rethrow;
     }
@@ -411,6 +421,8 @@ class SessionOcrHandlerConsensus {
     while (b.length < len) b.write('<');
     return b.toString();
   }
+
+
 }
 
 const _normMap = {
@@ -479,3 +491,72 @@ String fixAlphaOnlyField(String value) {
 /// - the line has at least 5 chars
 /// - chars 3–5 (index 2..4) equal [last3]
 /// Ties are returned as multiple items. Set [caseSensitive] if needed.
+String fixOcrBeforeNatOnly(String input, String natOnly) {
+  if (natOnly.isEmpty) return input;
+
+  // Common OCR confusions: letter -> digit
+  const Map<String, String> map = {
+    'O': '0',
+    'Q': '0',
+    'D': '0', // sometimes OCR uses D for 0
+    'I': '1',
+    'L': '1',
+    'Z': '2',
+    'S': '5',
+    'B': '8',
+    'G': '6',
+    'T': '7',
+  };
+
+  bool isTokenChar(int codeUnit) {
+    final c = String.fromCharCode(codeUnit);
+    final isAZ = codeUnit >= 65 && codeUnit <= 90;   // A-Z
+    final is09 = codeUnit >= 48 && codeUnit <= 57;   // 0-9
+    return isAZ || is09 || c == '<';
+  }
+
+  String replaceInToken(String token) {
+    final sb = StringBuffer();
+    for (var i = 0; i < token.length; i++) {
+      final ch = token[i];
+      sb.write(map[ch] ?? ch);
+    }
+    return sb.toString();
+  }
+
+  final upper = input.toUpperCase(); // MRZ is usually uppercase; helps consistency
+  final sb = StringBuffer();
+
+  int searchFrom = 0;
+  while (true) {
+    final idx = upper.indexOf(natOnly, searchFrom);
+    if (idx == -1) {
+      sb.write(upper.substring(searchFrom));
+      break;
+    }
+
+    // Find start of the token right before natOnly
+    int tokenEnd = idx; // exclusive
+    int tokenStart = tokenEnd;
+    while (tokenStart > 0 && isTokenChar(upper.codeUnitAt(tokenStart - 1))) {
+      tokenStart--;
+    }
+
+    // Write everything before the token unchanged
+    sb.write(upper.substring(searchFrom, tokenStart));
+
+    // Fix token and write it + natOnly
+    final token = upper.substring(tokenStart, tokenEnd);
+    sb.write(replaceInToken(token));
+    sb.write(natOnly);
+
+    searchFrom = idx + natOnly.length;
+  }
+
+  return sb.toString();
+}
+
+void myLog(String s) {
+  return;
+  log(s);
+}

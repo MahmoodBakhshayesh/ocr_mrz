@@ -1,11 +1,21 @@
 import 'package:camera_kit_plus/camera_kit_ocr_plus_view.dart';
+import 'package:ocr_mrz/constant_data_class.dart';
+import 'package:ocr_mrz/document_class.dart';
 
 enum MrzFormat { TD3, MRV_A, MRV_B, TD1, TD2, unknown }
-enum DocumentType {passport,visa,travelDocument1,travelDocument2}
+
+enum DocumentType { passport, visa, travelDocument1, travelDocument2 }
 
 class OcrMrzResult {
+  DocumentType get type =>
+      documentType == "P"
+          ? DocumentType.passport
+          : documentType == "V"
+          ? DocumentType.visa
+          : mrzFormat == MrzFormat.TD1
+          ? DocumentType.travelDocument1
+          : DocumentType.travelDocument2;
 
-  DocumentType get type => documentType == "P"?DocumentType.passport:documentType == "V"?DocumentType.visa:mrzFormat ==MrzFormat.TD1?DocumentType.travelDocument1:DocumentType.travelDocument2;
   // Raw lines
   String line1;
   String line2;
@@ -31,6 +41,7 @@ class OcrMrzResult {
 
   /// Back-compat alias of [documentNumber]. Will equal [documentNumber].
   String get passportNumber => documentNumber;
+
   set passportNumber(String v) => documentNumber = v;
 
   String lastName;
@@ -55,8 +66,10 @@ class OcrMrzResult {
   // Convenience
   // bool get isVisa => documentType == 'V';
   bool get isVisa => documentCode.startsWith("V");
+
   // bool get isPassport => documentType == 'P';
   bool get isPassport => documentCode.startsWith("P");
+
   String get typeName {
     switch (format) {
       case MrzFormat.TD3:
@@ -118,7 +131,7 @@ class OcrMrzResult {
         fmt = MrzFormat.MRV_B;
         break;
       default:
-      // Infer if not provided
+        // Infer if not provided
         if (docType == 'V') {
           // If lines are 44 => MRV-A, 36 => MRV-B, else unknown
           final l2 = (json["line2"] ?? '') as String? ?? '';
@@ -155,31 +168,27 @@ class OcrMrzResult {
       firstName: json["firstName"],
       documentNumber: docNo,
       nationality: json["nationality"],
-      birthDate:dateFromIsoIgnoreTime(json["birthDate"]) ,
-      expiryDate:dateFromIsoIgnoreTime(json["expiryDate"])  ,
-      issueDate:dateFromIsoIgnoreTime(json["issueDate"])  ,
+      birthDate: dateFromIsoIgnoreTime(json["birthDate"]),
+      expiryDate: dateFromIsoIgnoreTime(json["expiryDate"]),
+      issueDate: dateFromIsoIgnoreTime(json["issueDate"]),
       sex: json["sex"],
       personalNumber: personal,
       optionalData: opt,
       valid: OcrMrzValidation.fromJson(json["valid"] ?? const {}),
       checkDigits: CheckDigits.fromJson(json["checkDigits"] ?? const {}),
       ocrData: OcrData.fromJson(json["ocrData"]),
-      format: MrzFormat.values.firstWhere(
-            (f) => f.toString().split('.').last == (json["format"] ?? 'unknown'),
-        orElse: () => MrzFormat.unknown,
-
-      ),
+      format: MrzFormat.values.firstWhere((f) => f.toString().split('.').last == (json["format"] ?? 'unknown'), orElse: () => MrzFormat.unknown),
     );
   }
 
-  List<String> get mrzLines =>line3!=null?[line1,line2,line3!]: [line1, line2];
+  List<String> get mrzLines => line3 != null ? [line1, line2, line3!] : [line1, line2];
 
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{
       "line1": line1,
       "line2": line2,
-      "line3":line3,
-      "documentCode":documentCode,
+      "line3": line3,
+      "documentCode": documentCode,
       "documentType": documentType,
       "mrzFormat": _formatToString(mrzFormat),
       "format": format.toString().split('.').last,
@@ -218,6 +227,42 @@ class OcrMrzResult {
         return "unknown";
     }
   }
+
+  DocumentDetail? toDocument() {
+    DocumentDetail d = DocumentDetail();
+
+    if (!valid.birthDateValid || !valid.expiryDateValid || !valid.docNumberValid || !valid.countryValid) {
+      return null;
+    }
+
+    final constData = ConstData.offline();
+
+    final nat = constData!.getLocationWithCode(nationality);
+    final issueCountry = constData!.getLocationWithCode(countryCode);
+    String short =
+        documentCode.startsWith("P")
+            ? "P"
+            : documentCode.startsWith("V")
+            ? "V"
+            : "P";
+
+    DocumentDetail documentDetail = DocumentDetail(
+      shortType: short,
+      documentExpiryDate: expiryDate,
+      documentIssueCountry: issueCountry,
+      documentCode: null,
+      fullName: "$firstName $lastName",
+      documentNumber: documentNumber,
+      nationality: nat,
+      mrz: mrzLines.join("\n"),
+      birthDate: birthDate,
+      ocrText: ocrData.text,
+      sex: sex,
+      docCode: documentCode,
+      verifiedDocNum: false,
+    );
+    return documentDetail;
+  }
 }
 
 class CheckDigits {
@@ -232,13 +277,7 @@ class CheckDigits {
   /// If null => not applicable.
   bool? finalComposite;
 
-  CheckDigits({
-    required this.document,
-    required this.birth,
-    required this.expiry,
-    required this.optional,
-    this.finalComposite,
-  });
+  CheckDigits({required this.document, required this.birth, required this.expiry, required this.optional, this.finalComposite});
 
   factory CheckDigits.fromJson(Map<String, dynamic> json) => CheckDigits(
     // accept both "document" and legacy "passport"
@@ -246,18 +285,11 @@ class CheckDigits {
     birth: json["birth"] ?? false,
     expiry: json["expiry"] ?? false,
     optional: json["optional"] ?? false,
-    finalComposite: json.containsKey("final")
-        ? (json["final"] as bool?)
-        : (json.containsKey("finalComposite") ? json["finalComposite"] as bool? : null),
+    finalComposite: json.containsKey("final") ? (json["final"] as bool?) : (json.containsKey("finalComposite") ? json["finalComposite"] as bool? : null),
   );
 
   Map<String, dynamic> toJson() {
-    final map = <String, dynamic>{
-      "document": document,
-      "birth": birth,
-      "expiry": expiry,
-      "optional": optional,
-    };
+    final map = <String, dynamic>{"document": document, "birth": birth, "expiry": expiry, "optional": optional};
     // Keep legacy "passport" key in sync for old readers
     map["passport"] = document;
 
@@ -336,9 +368,7 @@ class OcrMrzValidation {
 
   @override
   String toString() {
-    final finalLabel = hasFinalCheck
-        ? "Final ${finalCheckValid ? '✅' : '❌'}"
-        : "Final N/A";
+    final finalLabel = hasFinalCheck ? "Final ${finalCheckValid ? '✅' : '❌'}" : "Final N/A";
     return "Num ${docNumberValid ? '✅' : '❌'} "
         "Code ${docCodeValid ? '✅' : '❌'} "
         "Bth ${birthDateValid ? '✅' : '❌'} "
@@ -347,7 +377,7 @@ class OcrMrzValidation {
         "Iss ${countryValid ? '✅' : '❌'} "
         "Nat ${nationalityValid ? '✅' : '❌'} "
         "Sex ${sexValid ? '✅' : '❌'} ";
-        // "$finalLabel";
+    // "$finalLabel";
   }
 }
 
@@ -397,23 +427,20 @@ class OcrMrzCountValidation {
     "countryValidCount": countryValidCount,
     "nationalityValidCount": nationalityValidCount,
   };
-
 }
-
-
 
 /// Write as UTC midnight ISO (e.g. 2025-09-06T00:00:00.000Z)
 String? dateAsUtcIso(DateTime? d) {
-  if(d == null) return null;
+  if (d == null) return null;
   return DateTime.utc(d.year, d.month, d.day).toIso8601String();
 }
 
 /// Read from ISO but keep only the calendar parts (avoid TZ shifts)
 DateTime? dateFromIsoIgnoreTime(String? iso) {
-  if(iso == null){
+  if (iso == null) {
     return null;
   }
-  final dt = DateTime.parse(iso);       // may be UTC or local depending on 'Z'
-  final utc = dt.toUtc();               // normalize to UTC
+  final dt = DateTime.parse(iso); // may be UTC or local depending on 'Z'
+  final utc = dt.toUtc(); // normalize to UTC
   return DateTime(utc.year, utc.month, utc.day); // local date with same Y/M/D
 }

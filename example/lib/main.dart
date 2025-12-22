@@ -48,6 +48,7 @@ class _MyHomePageState extends State<MyHomePage> {
     validateDocNumberValid: false,
     validateNames: true,
     algorithm: ParseAlgorithm.method2,
+    rotation: 0
   );
   int logCount = 0;
   OcrMrzLog? lastLog;
@@ -229,7 +230,9 @@ class _MyHomePageState extends State<MyHomePage> {
           child: ValueListenableBuilder<List<SessionStatus>>(
             valueListenable: controller.getSessionHistory,
             builder: (context, value, child) {
+
               return Text("Passport Reader ${sessionList.length}");
+
             },
           ),
         ),
@@ -286,7 +289,9 @@ class _MyHomePageState extends State<MyHomePage> {
                     onFoundMrz: (a) {
                       if (scanning) {
                         if (a.matchSetting(setting)) {
-                          showFoundPassport(a);
+                         log("${jsonEncode(a.toDocument()?.toJson())}");
+
+                          // showFoundPassport(a);
                         }
                       }
                     },

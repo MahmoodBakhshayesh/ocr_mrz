@@ -113,6 +113,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(Duration(milliseconds: 400), () {
+        log("Setting rotation ${widget.setting?.rotation ?? 0}");
         cameraKitPlusController.setOcrRotation(widget.setting?.rotation ?? 0);
         cameraKitPlusController.setMacro(widget.setting?.macro ?? false);
       });
