@@ -228,8 +228,8 @@ class OcrMrzResult {
     }
   }
 
-  DocumentDetail? toDocument() {
-    DocumentDetail d = DocumentDetail();
+  OcrMrzDocumentDetail? toDocument() {
+    OcrMrzDocumentDetail d = OcrMrzDocumentDetail();
 
     if (!valid.birthDateValid || !valid.expiryDateValid || !valid.docNumberValid || !valid.countryValid) {
       return null;
@@ -246,7 +246,7 @@ class OcrMrzResult {
             ? "V"
             : "P";
 
-    DocumentDetail documentDetail = DocumentDetail(
+    OcrMrzDocumentDetail documentDetail = OcrMrzDocumentDetail(
       shortType: short,
       documentExpiryDate: expiryDate,
       documentIssueCountry: issueCountry,

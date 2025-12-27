@@ -5,9 +5,12 @@ import 'constant_data_class.dart';
 import 'gender_class.dart';
 import 'mrz_result_class_fix.dart' hide DocumentType;
 
-class DocumentDetail {
+class OcrMrzDocumentDetail {
   final String? documentNumber;
   final String? fullName;
+  final String? firstName;
+  final String? lastName;
+  final String? middleName;
   final DocumentCode? documentCode;
   final DateTime? documentExpiryDate;
   final DocumentCountry? documentIssueCountry;
@@ -24,11 +27,14 @@ class DocumentDetail {
   final bool verifiedDocCode;
   final List<String> suggestionCodes;
 
-  const DocumentDetail({
+  const OcrMrzDocumentDetail({
     this.documentNumber,
     this.shortType,
     this.suggestionCodes = const[],
     this.fullName,
+    this.firstName,
+    this.lastName,
+    this.middleName,
     this.documentCode,
     this.documentExpiryDate,
     this.birthDate,
@@ -46,9 +52,11 @@ class DocumentDetail {
 
   static const _unset = Object();
 
-  DocumentDetail copyWith({
+  OcrMrzDocumentDetail copyWith({
     Object? documentNumber = _unset,
     Object? fullName = _unset,
+    Object? firstName = _unset,
+    Object? lastName = _unset,
     Object? documentCode = _unset,
     Object? documentExpiryDate = _unset,
     Object? birthDate = _unset,
@@ -68,9 +76,11 @@ class DocumentDetail {
     Object? verifiedDocCode = _unset,
     Object? suggestionCodes = _unset,
   }) {
-    return DocumentDetail(
+    return OcrMrzDocumentDetail(
       documentNumber: identical(documentNumber, _unset) ? this.documentNumber : documentNumber as String?,
       fullName: identical(fullName, _unset) ? this.fullName : fullName as String?,
+      firstName: identical(firstName, _unset) ? this.firstName : fullName as String?,
+      lastName: identical(lastName, _unset) ? this.lastName : fullName as String?,
       documentCode: identical(documentCode, _unset) ? this.documentCode : documentCode as DocumentCode?,
       documentExpiryDate: identical(documentExpiryDate, _unset) ? this.documentExpiryDate : documentExpiryDate as DateTime?,
       birthDate: identical(birthDate, _unset) ? this.birthDate : birthDate as DateTime?,
@@ -89,10 +99,12 @@ class DocumentDetail {
     );
   }
 
-  factory DocumentDetail.fromJson(Map<String, dynamic> json) {
-    return DocumentDetail(
+  factory OcrMrzDocumentDetail.fromJson(Map<String, dynamic> json) {
+    return OcrMrzDocumentDetail(
       documentNumber: json['documentNumber']?.toString(),
       fullName: json['fullName']?.toString(),
+      firstName: json['firstName']?.toString(),
+      lastName: json['lastName']?.toString(),
       documentCode: json['documentCode'] is Map<String, dynamic> ? DocumentCode.fromJson(json['documentCode']) : null,
       documentExpiryDate: parseDate(json['documentExpiryDate']),
       birthDate: parseDate(json['birthDate']),
@@ -107,10 +119,12 @@ class DocumentDetail {
       verifiedDocNum: json["verifiedDocNum"],
     );
   }
-  factory DocumentDetail.fromMrzResult(OcrMrzResult res) {
-    return DocumentDetail(
+  factory OcrMrzDocumentDetail.fromMrzResult(OcrMrzResult res) {
+    return OcrMrzDocumentDetail(
       documentNumber: res.documentNumber,
       fullName: "${res.firstName} ${res.lastName}",
+      firstName: res.firstName,
+      lastName: res.lastName,
       documentCode: null,
       documentExpiryDate: res.expiryDate,
       birthDate: res.birthDate,
@@ -127,19 +141,21 @@ class DocumentDetail {
   }
 
 
-  factory DocumentDetail.visa() {
-    return DocumentDetail(shortType: "V");
+  factory OcrMrzDocumentDetail.visa() {
+    return OcrMrzDocumentDetail(shortType: "V");
   }
-  factory DocumentDetail.passport() {
-    return DocumentDetail(shortType: "P",birthDate: DateTime(2000,1,1));
+  factory OcrMrzDocumentDetail.passport() {
+    return OcrMrzDocumentDetail(shortType: "P",birthDate: DateTime(2000,1,1));
   }
-  factory DocumentDetail.resident() {
-    return DocumentDetail(shortType: "I");
+  factory OcrMrzDocumentDetail.resident() {
+    return OcrMrzDocumentDetail(shortType: "I");
   }
 
   Map<String, dynamic> toJson() => {
     'documentNumber': documentNumber,
     'fullName': fullName,
+    'firstName': firstName,
+    'lastName': lastName,
     'documentCode': documentCode?.code,
     'documentExpiryDate': formatDate(documentExpiryDate),
     'birthDate': formatDate(birthDate),
