@@ -25,6 +25,17 @@ class SessionLogEntry {
     final detailsString = details.isNotEmpty ? " - Details: $details" : "";
     return "[${timestamp.toIso8601String()}] (Step: ${step ?? 'N/A'}) $message$detailsString";
   }
+
+  @override
+  Map<String,dynamic> toJson() {
+    return {
+      "message":"[${timestamp.toIso8601String()}] (Step: ${step ?? 'N/A'}) $message",
+      "step":step,
+      "details":"${details}",
+    };
+    // final detailsString = details.isNotEmpty ? " - Details: $details" : "";
+    // return "[${timestamp.toIso8601String()}] (Step: ${step ?? 'N/A'}) $message$detailsString";
+  }
 }
 
 class SessionLogger {

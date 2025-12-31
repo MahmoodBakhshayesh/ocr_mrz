@@ -115,6 +115,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
 
   OcrMrzConsensus? improving;
 
+
   @override
   void initState() {
     super.initState();
@@ -124,10 +125,11 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(const Duration(milliseconds: 400), () {
-        log("Setting rotation ${widget.setting?.rotation ?? 0}");
-        cameraKitPlusController.setOcrRotation(widget.setting?.rotation ?? 0);
-        cameraKitPlusController.setMacro(widget.setting?.macro ?? false);
+      Future.delayed(const Duration(seconds: 1), () {
+        setState((){});
+        //
+        // cameraKitPlusController.setOcrRotation(widget.setting?.rotation ?? 0);
+        // cameraKitPlusController.setMacro(widget.setting?.macro ?? false);
       });
     });
   }
@@ -157,49 +159,46 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        CameraKitOcrPlusView(
-          showFrame: widget.showFrame,
-          showZoomSlider: widget.showZoom,
-          controller: cameraKitPlusController,
-          onTextRead: (c) {
-            if (widget.setting?.algorithm == ParseAlgorithm.method3) {
-              OcrMrzLog log = OcrMrzLog(rawText: c.text, rawMrzLines: c.lines.where((a) => a.text.contains("<")).map((a) => a.text).toList(), fixedMrzLines: [], validation: OcrMrzValidation(), extractedData: {});
-              widget.mrzLogger?.call(log);
-            } else {
-              final newCon = _sessionOcrHandler.handleSession(cameraKitPlusController.aggregator, c, widget.setting ?? OcrMrzSetting(), widget.nameValidations ?? []);
-              improving = newCon;
-              widget.onConsensusChanged?.call(newCon);
-              if (cameraKitPlusController.aggregator.matchValidationCount(widget.countValidation, widget.setting ?? OcrMrzSetting())) {
-                if (newCon.toResult().matchSetting(widget.setting ?? OcrMrzSetting())) {
-                  final result = newCon.toResult();
-                  result.scanDuration = DateTime.now().difference(cameraKitPlusController._sessionStartTime);
-                  final mrzLines = cameraKitPlusController.aggregator.buildMrz();
-                  if (mrzLines.isNotEmpty) {
-                    result.line1 = mrzLines[0];
-                    if (mrzLines.length > 1) {
-                      result.line2 = mrzLines[1];
-                    }
-                    if (mrzLines.length > 2) {
-                      result.line3 = mrzLines[2];
-                    }
-                  }
-                  
-                  // Flush logs before sending the result
-                  cameraKitPlusController.logger.flush();
-                  
-                  widget.onFoundMrz(result);
-                  cameraKitPlusController.resetSession();
+
+    return CameraKitOcrPlusView(
+      showFrame: widget.showFrame,
+      showZoomSlider: widget.showZoom,
+      controller: cameraKitPlusController,
+      onTextRead: (c) {
+        if (widget.setting?.algorithm == ParseAlgorithm.method3) {
+          OcrMrzLog log = OcrMrzLog(rawText: c.text, rawMrzLines: c.lines.where((a) => a.text.contains("<")).map((a) => a.text).toList(), fixedMrzLines: [], validation: OcrMrzValidation(), extractedData: {});
+          widget.mrzLogger?.call(log);
+        } else {
+          final newCon = _sessionOcrHandler.handleSession(cameraKitPlusController.aggregator, c, widget.setting ?? OcrMrzSetting(), widget.nameValidations ?? []);
+          improving = newCon;
+          widget.onConsensusChanged?.call(newCon);
+          if (cameraKitPlusController.aggregator.matchValidationCount(widget.countValidation, widget.setting ?? OcrMrzSetting())) {
+            if (newCon.toResult().matchSetting(widget.setting ?? OcrMrzSetting())) {
+              final result = newCon.toResult();
+              result.scanDuration = DateTime.now().difference(cameraKitPlusController._sessionStartTime);
+              final mrzLines = cameraKitPlusController.aggregator.buildMrz();
+              if (mrzLines.isNotEmpty) {
+                result.line1 = mrzLines[0];
+                if (mrzLines.length > 1) {
+                  result.line2 = mrzLines[1];
+                }
+                if (mrzLines.length > 2) {
+                  result.line3 = mrzLines[2];
                 }
               }
-              if (mounted) {
-                setState(() {});
-              }
+
+              // Flush logs before sending the result
+              cameraKitPlusController.logger.flush();
+
+              widget.onFoundMrz(result);
+              cameraKitPlusController.resetSession();
             }
-          },
-        ),
-      ],
+          }
+          if (mounted) {
+            setState(() {});
+          }
+        }
+      },
     );
   }
 }
