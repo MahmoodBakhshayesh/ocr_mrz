@@ -43,7 +43,7 @@ class _MyHomePageState extends State<MyHomePage> {
     onLog: (l){
       // log(l.toString());
     },
-    onLogBatch: (ll,LogFlushReason reason){
+    onLogBatch: (List<SessionLogEntry> ll,LogFlushReason reason){
       final lll = ll.where((a)=>((a.step??0) >0));
       if(lll.isEmpty){
         return;
@@ -57,6 +57,7 @@ class _MyHomePageState extends State<MyHomePage> {
   OcrMrzSetting setting = OcrMrzSetting(
     validateBirthDateValid: true,
     validatePersonalNumberValid: false,
+
     validateLinesLength: false,
     validateFinalCheckValid: false,
     validateExpiryDateValid: true,
