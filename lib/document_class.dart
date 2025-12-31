@@ -11,7 +11,7 @@ class OcrMrzDocumentDetail {
   final String? firstName;
   final String? lastName;
   final String? middleName;
-  final DocumentCode? documentCode;
+  final OcrMrzDocumentCode? documentCode;
   final DateTime? documentExpiryDate;
   final DocumentCountry? documentIssueCountry;
   final DateTime? documentIssueDate;
@@ -81,7 +81,7 @@ class OcrMrzDocumentDetail {
       fullName: identical(fullName, _unset) ? this.fullName : fullName as String?,
       firstName: identical(firstName, _unset) ? this.firstName : fullName as String?,
       lastName: identical(lastName, _unset) ? this.lastName : fullName as String?,
-      documentCode: identical(documentCode, _unset) ? this.documentCode : documentCode as DocumentCode?,
+      documentCode: identical(documentCode, _unset) ? this.documentCode : documentCode as OcrMrzDocumentCode?,
       documentExpiryDate: identical(documentExpiryDate, _unset) ? this.documentExpiryDate : documentExpiryDate as DateTime?,
       birthDate: identical(birthDate, _unset) ? this.birthDate : birthDate as DateTime?,
       documentIssueCountry: identical(documentIssueCountry, _unset) ? this.documentIssueCountry : documentIssueCountry as DocumentCountry?,
@@ -105,7 +105,7 @@ class OcrMrzDocumentDetail {
       fullName: json['fullName']?.toString(),
       firstName: json['firstName']?.toString(),
       lastName: json['lastName']?.toString(),
-      documentCode: json['documentCode'] is Map<String, dynamic> ? DocumentCode.fromJson(json['documentCode']) : null,
+      documentCode: json['documentCode'] is Map<String, dynamic> ? OcrMrzDocumentCode.fromJson(json['documentCode']) : null,
       documentExpiryDate: parseDate(json['documentExpiryDate']),
       birthDate: parseDate(json['birthDate']),
       documentIssueCountry: json['documentIssueCountry'] is Map<String, dynamic> ? DocumentCountry.fromJson(json['documentIssueCountry']) : null,
@@ -206,10 +206,10 @@ class OcrMrzDocumentDetail {
     return (documentExpiryDate.yyyyMMdd == res.expiryDate.yyyyMMdd) && (docCode == res.documentCode) && (res.documentNumber == documentNumber) && (documentNumber ?? '').isNotEmpty;
   }
 
-  DocumentType? getMatch([ConstData? data]) {
+  OcrMrzDocumentType? getMatch([ConstData? data]) {
     data ??= ConstData.offline();
     String? dc = docCode;
-    DocumentType? match;
+    OcrMrzDocumentType? match;
     if (dc != null && dc.length > 1) {
       match = data!.documentType.lastOrNullWhere((a) => a.type == data!.documentCode.firstWhere((a) => a.type == shortType || a.code == documentCode?.code).type);
     }
@@ -218,9 +218,9 @@ class OcrMrzDocumentDetail {
     return match;
   }
 
-  DocumentDetailType? getTypeDetailsMatch([ConstData? data]) {
+  OcrMrzDocumentDetailType? getTypeDetailsMatch([ConstData? data]) {
     String? dc = docCode;
-    DocumentDetailType? match;
+    OcrMrzDocumentDetailType? match;
     if (docCode == null) {
       return null;
     }
