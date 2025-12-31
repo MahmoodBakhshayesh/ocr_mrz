@@ -63,6 +63,10 @@ class OcrMrzResult {
   OcrData ocrData;
   final MrzFormat format;
 
+  /// The duration from the start of the session until the result was found.
+  /// This is a runtime value and not part of the JSON serialization.
+  Duration? scanDuration;
+
   // Convenience
   // bool get isVisa => documentType == 'V';
   bool get isVisa => documentCode.startsWith("V");
@@ -111,6 +115,7 @@ class OcrMrzResult {
     required this.valid,
     required this.checkDigits,
     required this.ocrData,
+    this.scanDuration,
   });
 
   /// Robust factory that accepts both the old (passport-only) JSON and the new visa-aware JSON.

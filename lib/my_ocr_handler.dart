@@ -125,28 +125,11 @@ List<String> parseOldNumNat(String secondLineFixed) {
     fullDocNumber = baseDocNumber;
   }
 
-  // ---- Assign to your variables / validation state ----
-  final docNumber = fullDocNumber; // what you expose/use
-  final docNumberMrzField = baseDocNumber; // if you also want the 9-char as-is
-
-  // Example of how you were accumulating for the final composite check:
-  // (Keep using the MRZ field + its check digit for the composite per ICAO)
-  var finalCheckValue = '';
-  finalCheckValue += mrzDocField;  // NOT fullDocNumber
-  finalCheckValue += mrzDocCheck;
-
   if(docNumberValid && nationalityValid){
     result.add(fullDocNumber);
     result.add(nationality);
   }
 
-
-
-  // ... continue with birth, expiry, personal number, etc.
-
-  // Your existing flags:
-  // validation.docNumberValid = docNumberValid;
-  // validation.nationalityValid = nationalityValid;
   return result;
 }
 final issueDateYYMMDD = RegExp(
@@ -156,9 +139,6 @@ final issueDateYYMMDD = RegExp(
 
 class MyOcrHandler {
   static OcrMrzResult? handle(OcrData ocr, void Function(OcrMrzLog log)? mrzLogger) {
-
-    // secondLineFixed must be the full TD3 line 2 (length 44), already normalized (< padded).
-
 
     OcrMrzValidation validation = OcrMrzValidation();
     DocumentStandardType? type;
@@ -184,7 +164,6 @@ class MyOcrHandler {
     List<String> otherLines = [];
 
     if (rawLines.any((a) => a.contains("<<"))) {
-      // log("Has Ocr");
       String firstLine = rawLines.firstWhere((a) => a.contains("<<"));
       int firstLineIndex = rawLines.indexOf(firstLine);
       rawMrzLines.add(firstLine);
@@ -198,8 +177,6 @@ class MyOcrHandler {
           rawMrzLines.add(thirdLine);
         }
       }
-      // log("\n${rawMrzLines.map((a)=>'$a\n${normalize44(a)}').join("\n")}");
-      // log("-"*100);
       List<String> fixedMrzLines;
       if (rawMrzLines.length < 3) {
         if (rawMrzLines.first.length > 40) {
@@ -225,7 +202,6 @@ class MyOcrHandler {
 
       final firstLineFixed = fixedMrzLines.first;
       final secondLineFixed = fixedMrzLines[1];
-      final thirdLineFixed = fixedMrzLines.length>2?fixedMrzLines[2]:null;
       docCode = firstLineFixed.substring(0, 2);
       countryCode = firstLineFixed.substring(2, 5);
       issuing = firstLineFixed.substring(2, 5);
@@ -234,7 +210,7 @@ class MyOcrHandler {
       validation.countryValid = isValidMrzCountry(countryCode);
 
       if(!validation.countryValid){
-        log("country ${countryCode} is no valid");
+        log("country $countryCode is not valid");
       }
 
       final mrzDatesSex = RegExp(r'(\d{6})(\d)([MFX<])(\d{6})(\d)', caseSensitive: false);
@@ -270,11 +246,8 @@ class MyOcrHandler {
         final td3NationalityMatch = td3Nationality.firstMatch(secondLineFixed);
         if (td3NationalityMatch != null) {
           final nationalityStr = fixAlphaOnlyField(td3NationalityMatch.group(1)!);
-          // log("nationalityStr ${nationalityStr}");
           nationality = nationalityStr;
-          validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
-        } else {
-          // log("td3NationalityMatch no match");
+          validation.nationalityValid = isValidMrzCountry(nationalityStr);
         }
 
         if(!validation.docNumberValid){
@@ -286,10 +259,6 @@ class MyOcrHandler {
             validation.nationalityValid = true;
           }
         }
-
-
-
-
 
         if (dateSexMatch != null) {
           finalCheckValue += stripSexFromDateSex(dateSexMatch.group(0)!);
@@ -314,13 +283,10 @@ class MyOcrHandler {
             final issueDateStr = issueDateMatch.group(0); // "220620"
             issueDate = _parseMrzDate(issueDateStr!);
           }
-
-
         }
 
         name = parseNamesTd3OrTd2(firstLineFixed);
       } else if (type == DocumentStandardType.td2) {
-        // Doc number + check (pos 0..8, 9)
         final td2DocNumber = RegExp(r'^([A-Z0-9<]{9})(\d)', caseSensitive: false);
         final td2DocNumberMatch = td2DocNumber.firstMatch(secondLineFixed);
         if (td2DocNumberMatch != null) {
@@ -333,22 +299,19 @@ class MyOcrHandler {
           finalCheckValue += (docNumberCheckStr ?? '');
         }
 
-        // Nationality (pos 10..12)
         final td2Nationality = RegExp(r'^[A-Z0-9<]{10}([A-Z<]{3})', caseSensitive: false);
         final td2NationalityMatch = td2Nationality.firstMatch(secondLineFixed);
         if (td2NationalityMatch != null) {
           final nationalityStr = fixAlphaOnlyField(td2NationalityMatch.group(1)!);
           nationality = nationalityStr;
-          validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
-          finalCheckValue += nationalityStr!;
+          validation.nationalityValid = isValidMrzCountry(nationalityStr);
+          finalCheckValue += nationalityStr;
         }
 
-        // Dates + sex (pos 13..27)
         if (dateSexMatch != null) {
           finalCheckValue += dateSexMatch.group(0)!;
         }
 
-        // Optional (7) + final check (1) (pos 28..34, 35)
         final td2OptionalFinal = RegExp(r'^.{28}([A-Z0-9<]{7})(\d)$', caseSensitive: false);
         final td2OptionalFinalMatch = td2OptionalFinal.firstMatch(secondLineFixed);
 
@@ -363,16 +326,15 @@ class MyOcrHandler {
           } else {
             optional = optionalStr;
             finalCheckValue += (optionalStr ?? '');
-            validation.personalNumberValid = true; // treat optional as personal no.
+            validation.personalNumberValid = true; 
             validation.hasFinalCheck = true;
             validation.finalCheckValid = _computeMrzCheckDigit(finalCheckValue) == finalCheckStr;
 
             final issueDateMatch = issueDateYYMMDD.firstMatch(optionalStr??'');
             if (issueDateMatch != null) {
-              final issueDateStr = issueDateMatch.group(0); // "220620"
+              final issueDateStr = issueDateMatch.group(0); 
               issueDate = _parseMrzDate(issueDateStr!);
             }
-
           }
         }
 
@@ -384,50 +346,31 @@ class MyOcrHandler {
 
         finalCheckValue += firstLineFixed.substring(5, 30);
 
-        // Dates + sex first (pos 0..14)
         if (dateSexMatch != null) {
           finalCheckValue += stripSexFromDateSex(dateSexMatch.group(0)!);
         }
 
-        // Nationality (pos 15..17)
         final td1Nationality = RegExp(r'^.{15}([A-Z<]{3})', caseSensitive: false);
         final td1NationalityMatch = td1Nationality.firstMatch(secondLineFixed);
         if (td1NationalityMatch != null) {
           final nationalityStr = fixAlphaOnlyField(td1NationalityMatch.group(1)!);
           nationality = nationalityStr;
-          validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
+          validation.nationalityValid = isValidMrzCountry(nationalityStr);
         }
 
-        // Optional (11) + final check (1) (pos 18..28, 29)
         final td1OptionalFinal = RegExp(r'^.{18}([A-Z0-9<]{11})(\d)$', caseSensitive: false);
         final td1OptionalFinalMatch = td1OptionalFinal.firstMatch(secondLineFixed);
 
         if (td1OptionalFinalMatch != null) {
           final optionalStr = td1OptionalFinalMatch.group(1);
           final finalCheckStr = td1OptionalFinalMatch.group(2);
-
           optional = optionalStr;
-
-          final natMatch = RegExp(r'^.{15}([A-Z<]{3})', caseSensitive: false).firstMatch(secondLineFixed);
-          final nationalityForFinal = natMatch?.group(1) ?? '';
-
-
           final issueDateMatch = issueDateYYMMDD.firstMatch(optionalStr??'');
           if (issueDateMatch != null) {
-            final issueDateStr = issueDateMatch.group(0); // "220620"
+            final issueDateStr = issueDateMatch.group(0); 
             issueDate = _parseMrzDate(issueDateStr!);
           }
-
-          // final issueDateRegex = RegExp(r'(\d{6})(\d)', caseSensitive: false);
-          // final issueDateMatch = issueDateRegex.firstMatch(optionalStr??'');
-          // if(issueDateMatch != null){
-          //   issueDate = _parseMrzDate(issueDateMatch.group(0)!);
-          // }else{
-          //   log("not issue date Found in ${optionalStr}");
-          // }
-
-
-          finalCheckValue += (optionalStr ?? ''); // positions 18..28
+          finalCheckValue += (optionalStr ?? ''); 
           validation.personalNumberValid = true;
           validation.hasFinalCheck = true;
           validation.finalCheckValid = _computeMrzCheckDigit(finalCheckValue) == finalCheckStr;
@@ -439,19 +382,8 @@ class MyOcrHandler {
       if (name != null) {
         firstName = name.givenNames.join(" ");
         lastName = name.surname;
-        validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
+        validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]).$1;
       }
-
-
-      // final guess = guessIssueDate(
-      //   type: DocumentStandardType.td3,  // or td1/td2
-      //   line1: firstLineFixed,
-      //   line2: secondLineFixed,
-      //   line3: thirdLineFixed,
-      //   isVisaMRVB: firstLineFixed.startsWith('V'),
-      //   birthYYMMDD: '',
-      //   expiryYYMMDD: '',
-      // );
 
 
       log(validation.toString());
@@ -513,5 +445,3 @@ class MyOcrHandler {
    return res;
   }
 }
-
-

@@ -519,7 +519,8 @@ class MyOcrHandlerNew {
               if (name != null) {
                 firstName = name.givenNames.join(" ");
                 lastName = name.surname;
-                validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
+                var (a,_) = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
+                validation.nameValid = a;
               }
 
               log(validation.toString());
@@ -562,263 +563,263 @@ class MyOcrHandlerNew {
     }
     return result;
 
-    log("\n${fixedMrzLines.join("\n")}");
-    return null;
-    /////////////////////////////////////////////////////////////////////////////
-    if (rawLines.any((a) => a.contains("<<"))) {
-      // log("Has Ocr");
-      String firstLine = rawLines.firstWhere((a) => a.contains("<<"));
-      int firstLineIndex = rawLines.indexOf(firstLine);
-      rawMrzLines.add(firstLine);
-      if (firstLineIndex < rawLines.length - 1) {
-        String secondLine = rawLines[firstLineIndex + 1];
-        rawMrzLines.add(secondLine);
-      }
-      if (firstLineIndex < rawLines.length - 2) {
-        String thirdLine = rawLines[firstLineIndex + 2];
-        if (thirdLine.contains("<")) {
-          rawMrzLines.add(thirdLine);
-        }
-      }
-      // log("\n${rawMrzLines.map((a)=>'$a\n${normalize44(a)}').join("\n")}");
-      // log("-"*100);
-      List<String> fixedMrzLines;
-      if (rawMrzLines.length < 3) {
-        if (rawMrzLines.first.length > 40) {
-          type = DocumentStandardType.td3;
-          format = MrzFormat.TD3;
-
-          fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 44)).toList();
-        } else {
-          type = DocumentStandardType.td2;
-          format = MrzFormat.TD2;
-          fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 36)).toList();
-        }
-      } else {
-        format = MrzFormat.TD1;
-        type = DocumentStandardType.td1;
-        fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 30)).toList();
-      }
-      log("\n${fixedMrzLines.join("\n")}");
-
-      otherLines = [...rawLines].where((a) => !rawMrzLines.contains(a)).toList();
-      if (fixedMrzLines.length < 2) return null;
-      validation.linesLengthValid = true;
-
-      final firstLineFixed = fixedMrzLines.first;
-      docCode = firstLineFixed.substring(0, 2);
-      countryCode = firstLineFixed.substring(2, 5);
-      issuing = firstLineFixed.substring(2, 5);
-
-      validation.docCodeValid = DocumentCodeHelper.isValid(docCode);
-      validation.countryValid = isValidMrzCountry(countryCode);
-
-      if (!validation.countryValid) {
-        log("country ${countryCode} is no valid");
-      }
-
-      final secondLineFixed = fixedMrzLines[1];
-      final mrzDatesSex = RegExp(r'(\d{6})(\d)([MFX<])(\d{6})(\d)', caseSensitive: false);
-      final dateSexMatch = mrzDatesSex.firstMatch(secondLineFixed);
-      if (dateSexMatch != null) {
-        final birthDateStr = dateSexMatch.group(1);
-        final birthCheck = dateSexMatch.group(2);
-        final sexStr = dateSexMatch.group(3);
-        final expiryDateStr = dateSexMatch.group(4);
-        final expiryCheck = dateSexMatch.group(5);
-
-        validation.birthDateValid = _computeMrzCheckDigit(birthDateStr!) == birthCheck;
-        validation.expiryDateValid = _computeMrzCheckDigit(expiryDateStr!) == expiryCheck;
-        birthDate = _parseMrzDate(birthDateStr);
-        expiryDate = _parseMrzDate(expiryDateStr);
-        sex = sexStr;
-      }
-
-      if (type == DocumentStandardType.td3) {
-        final td3DocNumber = RegExp(r'^([A-Z0-9<]{9})(\d)', caseSensitive: false);
-        final td3DocNumberMatch = td3DocNumber.firstMatch(secondLineFixed);
-        if (td3DocNumberMatch != null) {
-          final docNumberStr = td3DocNumberMatch.group(1);
-          final docNumberCheckStr = td3DocNumberMatch.group(2);
-          docNumber = docNumberStr;
-          validation.docNumberValid = _computeMrzCheckDigit(docNumberStr ?? '') == docNumberCheckStr;
-
-          finalCheckValue += docNumberStr ?? '';
-          finalCheckValue += docNumberCheckStr ?? '';
-        }
-
-        final td3Nationality = RegExp(r'^[A-Z0-9<]{10}([A-Z0-9<]{3})', caseSensitive: false);
-        final td3NationalityMatch = td3Nationality.firstMatch(secondLineFixed);
-        if (td3NationalityMatch != null) {
-          final nationalityStr = fixAlphaOnlyField(td3NationalityMatch.group(1)!);
-          // log("nationalityStr ${nationalityStr}");
-          nationality = nationalityStr;
-          validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
-        } else {
-          // log("td3NationalityMatch no match");
-        }
-
-        if (!validation.docNumberValid) {
-          final oldFixes = parseOldNumNat(secondLineFixed);
-          if (oldFixes.length == 2) {
-            docNumber = oldFixes[0];
-            nationality = oldFixes[1];
-            validation.docNumberValid = true;
-            validation.nationalityValid = true;
-          }
-        }
-
-        if (dateSexMatch != null) {
-          finalCheckValue += stripSexFromDateSex(dateSexMatch.group(0)!);
-        }
-
-        final td3OptionalFinal = RegExp(r'^.{28}([A-Z0-9<]{15})(\d)$', caseSensitive: false);
-        final td3OptionalFinalMatch = td3OptionalFinal.firstMatch(secondLineFixed);
-
-        if (td3OptionalFinalMatch != null) {
-          final optionalStr = td3OptionalFinalMatch.group(1);
-          final finalCheckStr = td3OptionalFinalMatch.group(2);
-
-          optional = optionalStr;
-          finalCheckValue += (optionalStr ?? '');
-
-          validation.personalNumberValid = true;
-          validation.hasFinalCheck = true;
-          validation.finalCheckValid = _computeMrzCheckDigit(finalCheckValue) == finalCheckStr;
-        }
-
-        name = parseNamesTd3OrTd2(firstLineFixed);
-      } else if (type == DocumentStandardType.td2) {
-        // Doc number + check (pos 0..8, 9)
-        final td2DocNumber = RegExp(r'^([A-Z0-9<]{9})(\d)', caseSensitive: false);
-        final td2DocNumberMatch = td2DocNumber.firstMatch(secondLineFixed);
-        if (td2DocNumberMatch != null) {
-          final docNumberStr = td2DocNumberMatch.group(1);
-          final docNumberCheckStr = td2DocNumberMatch.group(2);
-          docNumber = docNumberStr;
-          validation.docNumberValid = _computeMrzCheckDigit(docNumberStr ?? '') == docNumberCheckStr;
-
-          finalCheckValue += (docNumberStr ?? '');
-          finalCheckValue += (docNumberCheckStr ?? '');
-        }
-
-        // Nationality (pos 10..12)
-        final td2Nationality = RegExp(r'^[A-Z0-9<]{10}([A-Z<]{3})', caseSensitive: false);
-        final td2NationalityMatch = td2Nationality.firstMatch(secondLineFixed);
-        if (td2NationalityMatch != null) {
-          final nationalityStr = fixAlphaOnlyField(td2NationalityMatch.group(1)!);
-          nationality = nationalityStr;
-          validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
-          finalCheckValue += nationalityStr!;
-        }
-
-        // Dates + sex (pos 13..27)
-        if (dateSexMatch != null) {
-          finalCheckValue += dateSexMatch.group(0)!;
-        }
-
-        // Optional (7) + final check (1) (pos 28..34, 35)
-        final td2OptionalFinal = RegExp(r'^.{28}([A-Z0-9<]{7})(\d)$', caseSensitive: false);
-        final td2OptionalFinalMatch = td2OptionalFinal.firstMatch(secondLineFixed);
-
-        if (td2OptionalFinalMatch != null) {
-          final optionalStr = td2OptionalFinalMatch.group(1);
-          final finalCheckStr = td2OptionalFinalMatch.group(2);
-
-          if (docCode.startsWith("V")) {
-            validation.hasFinalCheck = true;
-            validation.personalNumberValid = true;
-            validation.finalCheckValid = true;
-          } else {
-            optional = optionalStr;
-            finalCheckValue += (optionalStr ?? '');
-            validation.personalNumberValid = true; // treat optional as personal no.
-            validation.hasFinalCheck = true;
-            validation.finalCheckValid = _computeMrzCheckDigit(finalCheckValue) == finalCheckStr;
-          }
-        }
-
-        name = parseNamesTd3OrTd2(firstLineFixed);
-      } else if (type == DocumentStandardType.td1) {
-        docNumber = firstLineFixed.substring(5, 14);
-        final docNumberCheck = firstLineFixed[14];
-        validation.docNumberValid = _computeMrzCheckDigit(docNumber) == docNumberCheck;
-
-        finalCheckValue += firstLineFixed.substring(5, 30);
-
-        // Dates + sex first (pos 0..14)
-        if (dateSexMatch != null) {
-          finalCheckValue += stripSexFromDateSex(dateSexMatch.group(0)!);
-        }
-
-        // Nationality (pos 15..17)
-        final td1Nationality = RegExp(r'^.{15}([A-Z<]{3})', caseSensitive: false);
-        final td1NationalityMatch = td1Nationality.firstMatch(secondLineFixed);
-        if (td1NationalityMatch != null) {
-          final nationalityStr = fixAlphaOnlyField(td1NationalityMatch.group(1)!);
-          nationality = nationalityStr;
-          validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
-        }
-
-        // Optional (11) + final check (1) (pos 18..28, 29)
-        final td1OptionalFinal = RegExp(r'^.{18}([A-Z0-9<]{11})(\d)$', caseSensitive: false);
-        final td1OptionalFinalMatch = td1OptionalFinal.firstMatch(secondLineFixed);
-
-        if (td1OptionalFinalMatch != null) {
-          final optionalStr = td1OptionalFinalMatch.group(1);
-          final finalCheckStr = td1OptionalFinalMatch.group(2);
-
-          optional = optionalStr;
-
-          final natMatch = RegExp(r'^.{15}([A-Z<]{3})', caseSensitive: false).firstMatch(secondLineFixed);
-          final nationalityForFinal = natMatch?.group(1) ?? '';
-
-          finalCheckValue += (optionalStr ?? ''); // positions 18..28
-          validation.personalNumberValid = true;
-          validation.hasFinalCheck = true;
-          validation.finalCheckValid = _computeMrzCheckDigit(finalCheckValue) == finalCheckStr;
-        }
-        String nameLine = fixedMrzLines.last;
-        name = parseNamesTd1(nameLine);
-      }
-
-      if (name != null) {
-        firstName = name.givenNames.join(" ");
-        lastName = name.surname;
-        validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
-      }
-
-      log(validation.toString());
-      log("-" * 100);
-
-      OcrMrzResult result = OcrMrzResult(
-        line1: firstLineFixed,
-        line2: secondLineFixed,
-        format: format,
-        documentCode: docCode,
-        documentType: type.name.toUpperCase(),
-        mrzFormat: format,
-        countryCode: fixExceptionalCountry(countryCode),
-        issuingState: fixExceptionalCountry(issuing),
-        lastName: lastName ?? '',
-        firstName: firstName ?? '',
-        documentNumber: docNumber ?? '',
-        nationality: fixExceptionalCountry(nationality ?? ''),
-        birthDate: birthDate,
-        expiryDate: expiryDate,
-        sex: sex ?? '',
-        personalNumber: optional ?? '',
-        optionalData: optional ?? '',
-        valid: validation,
-        checkDigits: CheckDigits(document: true, birth: true, expiry: true, optional: true),
-        ocrData: ocr,
-      );
-      mrzLogger?.call(OcrMrzLog(rawText: ocr.text, rawMrzLines: rawMrzLines, fixedMrzLines: fixedMrzLines, validation: validation, extractedData: result.toJson()));
-      return result;
-    } else {
-      // log("No Ocr");
-    }
-    return null;
+    // log("\n${fixedMrzLines.join("\n")}");
+    // return null;
+    // /////////////////////////////////////////////////////////////////////////////
+    // if (rawLines.any((a) => a.contains("<<"))) {
+    //   // log("Has Ocr");
+    //   String firstLine = rawLines.firstWhere((a) => a.contains("<<"));
+    //   int firstLineIndex = rawLines.indexOf(firstLine);
+    //   rawMrzLines.add(firstLine);
+    //   if (firstLineIndex < rawLines.length - 1) {
+    //     String secondLine = rawLines[firstLineIndex + 1];
+    //     rawMrzLines.add(secondLine);
+    //   }
+    //   if (firstLineIndex < rawLines.length - 2) {
+    //     String thirdLine = rawLines[firstLineIndex + 2];
+    //     if (thirdLine.contains("<")) {
+    //       rawMrzLines.add(thirdLine);
+    //     }
+    //   }
+    //   // log("\n${rawMrzLines.map((a)=>'$a\n${normalize44(a)}').join("\n")}");
+    //   // log("-"*100);
+    //   List<String> fixedMrzLines;
+    //   if (rawMrzLines.length < 3) {
+    //     if (rawMrzLines.first.length > 40) {
+    //       type = DocumentStandardType.td3;
+    //       format = MrzFormat.TD3;
+    //
+    //       fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 44)).toList();
+    //     } else {
+    //       type = DocumentStandardType.td2;
+    //       format = MrzFormat.TD2;
+    //       fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 36)).toList();
+    //     }
+    //   } else {
+    //     format = MrzFormat.TD1;
+    //     type = DocumentStandardType.td1;
+    //     fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 30)).toList();
+    //   }
+    //   log("\n${fixedMrzLines.join("\n")}");
+    //
+    //   otherLines = [...rawLines].where((a) => !rawMrzLines.contains(a)).toList();
+    //   if (fixedMrzLines.length < 2) return null;
+    //   validation.linesLengthValid = true;
+    //
+    //   final firstLineFixed = fixedMrzLines.first;
+    //   docCode = firstLineFixed.substring(0, 2);
+    //   countryCode = firstLineFixed.substring(2, 5);
+    //   issuing = firstLineFixed.substring(2, 5);
+    //
+    //   validation.docCodeValid = DocumentCodeHelper.isValid(docCode);
+    //   validation.countryValid = isValidMrzCountry(countryCode);
+    //
+    //   if (!validation.countryValid) {
+    //     log("country ${countryCode} is no valid");
+    //   }
+    //
+    //   final secondLineFixed = fixedMrzLines[1];
+    //   final mrzDatesSex = RegExp(r'(\d{6})(\d)([MFX<])(\d{6})(\d)', caseSensitive: false);
+    //   final dateSexMatch = mrzDatesSex.firstMatch(secondLineFixed);
+    //   if (dateSexMatch != null) {
+    //     final birthDateStr = dateSexMatch.group(1);
+    //     final birthCheck = dateSexMatch.group(2);
+    //     final sexStr = dateSexMatch.group(3);
+    //     final expiryDateStr = dateSexMatch.group(4);
+    //     final expiryCheck = dateSexMatch.group(5);
+    //
+    //     validation.birthDateValid = _computeMrzCheckDigit(birthDateStr!) == birthCheck;
+    //     validation.expiryDateValid = _computeMrzCheckDigit(expiryDateStr!) == expiryCheck;
+    //     birthDate = _parseMrzDate(birthDateStr);
+    //     expiryDate = _parseMrzDate(expiryDateStr);
+    //     sex = sexStr;
+    //   }
+    //
+    //   if (type == DocumentStandardType.td3) {
+    //     final td3DocNumber = RegExp(r'^([A-Z0-9<]{9})(\d)', caseSensitive: false);
+    //     final td3DocNumberMatch = td3DocNumber.firstMatch(secondLineFixed);
+    //     if (td3DocNumberMatch != null) {
+    //       final docNumberStr = td3DocNumberMatch.group(1);
+    //       final docNumberCheckStr = td3DocNumberMatch.group(2);
+    //       docNumber = docNumberStr;
+    //       validation.docNumberValid = _computeMrzCheckDigit(docNumberStr ?? '') == docNumberCheckStr;
+    //
+    //       finalCheckValue += docNumberStr ?? '';
+    //       finalCheckValue += docNumberCheckStr ?? '';
+    //     }
+    //
+    //     final td3Nationality = RegExp(r'^[A-Z0-9<]{10}([A-Z0-9<]{3})', caseSensitive: false);
+    //     final td3NationalityMatch = td3Nationality.firstMatch(secondLineFixed);
+    //     if (td3NationalityMatch != null) {
+    //       final nationalityStr = fixAlphaOnlyField(td3NationalityMatch.group(1)!);
+    //       // log("nationalityStr ${nationalityStr}");
+    //       nationality = nationalityStr;
+    //       validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
+    //     } else {
+    //       // log("td3NationalityMatch no match");
+    //     }
+    //
+    //     if (!validation.docNumberValid) {
+    //       final oldFixes = parseOldNumNat(secondLineFixed);
+    //       if (oldFixes.length == 2) {
+    //         docNumber = oldFixes[0];
+    //         nationality = oldFixes[1];
+    //         validation.docNumberValid = true;
+    //         validation.nationalityValid = true;
+    //       }
+    //     }
+    //
+    //     if (dateSexMatch != null) {
+    //       finalCheckValue += stripSexFromDateSex(dateSexMatch.group(0)!);
+    //     }
+    //
+    //     final td3OptionalFinal = RegExp(r'^.{28}([A-Z0-9<]{15})(\d)$', caseSensitive: false);
+    //     final td3OptionalFinalMatch = td3OptionalFinal.firstMatch(secondLineFixed);
+    //
+    //     if (td3OptionalFinalMatch != null) {
+    //       final optionalStr = td3OptionalFinalMatch.group(1);
+    //       final finalCheckStr = td3OptionalFinalMatch.group(2);
+    //
+    //       optional = optionalStr;
+    //       finalCheckValue += (optionalStr ?? '');
+    //
+    //       validation.personalNumberValid = true;
+    //       validation.hasFinalCheck = true;
+    //       validation.finalCheckValid = _computeMrzCheckDigit(finalCheckValue) == finalCheckStr;
+    //     }
+    //
+    //     name = parseNamesTd3OrTd2(firstLineFixed);
+    //   } else if (type == DocumentStandardType.td2) {
+    //     // Doc number + check (pos 0..8, 9)
+    //     final td2DocNumber = RegExp(r'^([A-Z0-9<]{9})(\d)', caseSensitive: false);
+    //     final td2DocNumberMatch = td2DocNumber.firstMatch(secondLineFixed);
+    //     if (td2DocNumberMatch != null) {
+    //       final docNumberStr = td2DocNumberMatch.group(1);
+    //       final docNumberCheckStr = td2DocNumberMatch.group(2);
+    //       docNumber = docNumberStr;
+    //       validation.docNumberValid = _computeMrzCheckDigit(docNumberStr ?? '') == docNumberCheckStr;
+    //
+    //       finalCheckValue += (docNumberStr ?? '');
+    //       finalCheckValue += (docNumberCheckStr ?? '');
+    //     }
+    //
+    //     // Nationality (pos 10..12)
+    //     final td2Nationality = RegExp(r'^[A-Z0-9<]{10}([A-Z<]{3})', caseSensitive: false);
+    //     final td2NationalityMatch = td2Nationality.firstMatch(secondLineFixed);
+    //     if (td2NationalityMatch != null) {
+    //       final nationalityStr = fixAlphaOnlyField(td2NationalityMatch.group(1)!);
+    //       nationality = nationalityStr;
+    //       validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
+    //       finalCheckValue += nationalityStr!;
+    //     }
+    //
+    //     // Dates + sex (pos 13..27)
+    //     if (dateSexMatch != null) {
+    //       finalCheckValue += dateSexMatch.group(0)!;
+    //     }
+    //
+    //     // Optional (7) + final check (1) (pos 28..34, 35)
+    //     final td2OptionalFinal = RegExp(r'^.{28}([A-Z0-9<]{7})(\d)$', caseSensitive: false);
+    //     final td2OptionalFinalMatch = td2OptionalFinal.firstMatch(secondLineFixed);
+    //
+    //     if (td2OptionalFinalMatch != null) {
+    //       final optionalStr = td2OptionalFinalMatch.group(1);
+    //       final finalCheckStr = td2OptionalFinalMatch.group(2);
+    //
+    //       if (docCode.startsWith("V")) {
+    //         validation.hasFinalCheck = true;
+    //         validation.personalNumberValid = true;
+    //         validation.finalCheckValid = true;
+    //       } else {
+    //         optional = optionalStr;
+    //         finalCheckValue += (optionalStr ?? '');
+    //         validation.personalNumberValid = true; // treat optional as personal no.
+    //         validation.hasFinalCheck = true;
+    //         validation.finalCheckValid = _computeMrzCheckDigit(finalCheckValue) == finalCheckStr;
+    //       }
+    //     }
+    //
+    //     name = parseNamesTd3OrTd2(firstLineFixed);
+    //   } else if (type == DocumentStandardType.td1) {
+    //     docNumber = firstLineFixed.substring(5, 14);
+    //     final docNumberCheck = firstLineFixed[14];
+    //     validation.docNumberValid = _computeMrzCheckDigit(docNumber) == docNumberCheck;
+    //
+    //     finalCheckValue += firstLineFixed.substring(5, 30);
+    //
+    //     // Dates + sex first (pos 0..14)
+    //     if (dateSexMatch != null) {
+    //       finalCheckValue += stripSexFromDateSex(dateSexMatch.group(0)!);
+    //     }
+    //
+    //     // Nationality (pos 15..17)
+    //     final td1Nationality = RegExp(r'^.{15}([A-Z<]{3})', caseSensitive: false);
+    //     final td1NationalityMatch = td1Nationality.firstMatch(secondLineFixed);
+    //     if (td1NationalityMatch != null) {
+    //       final nationalityStr = fixAlphaOnlyField(td1NationalityMatch.group(1)!);
+    //       nationality = nationalityStr;
+    //       validation.nationalityValid = isValidMrzCountry(nationalityStr ?? '');
+    //     }
+    //
+    //     // Optional (11) + final check (1) (pos 18..28, 29)
+    //     final td1OptionalFinal = RegExp(r'^.{18}([A-Z0-9<]{11})(\d)$', caseSensitive: false);
+    //     final td1OptionalFinalMatch = td1OptionalFinal.firstMatch(secondLineFixed);
+    //
+    //     if (td1OptionalFinalMatch != null) {
+    //       final optionalStr = td1OptionalFinalMatch.group(1);
+    //       final finalCheckStr = td1OptionalFinalMatch.group(2);
+    //
+    //       optional = optionalStr;
+    //
+    //       final natMatch = RegExp(r'^.{15}([A-Z<]{3})', caseSensitive: false).firstMatch(secondLineFixed);
+    //       final nationalityForFinal = natMatch?.group(1) ?? '';
+    //
+    //       finalCheckValue += (optionalStr ?? ''); // positions 18..28
+    //       validation.personalNumberValid = true;
+    //       validation.hasFinalCheck = true;
+    //       validation.finalCheckValid = _computeMrzCheckDigit(finalCheckValue) == finalCheckStr;
+    //     }
+    //     String nameLine = fixedMrzLines.last;
+    //     name = parseNamesTd1(nameLine);
+    //   }
+    //
+    //   if (name != null) {
+    //     firstName = name.givenNames.join(" ");
+    //     lastName = name.surname;
+    //     validation.nameValid = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
+    //   }
+    //
+    //   log(validation.toString());
+    //   log("-" * 100);
+    //
+    //   OcrMrzResult result = OcrMrzResult(
+    //     line1: firstLineFixed,
+    //     line2: secondLineFixed,
+    //     format: format,
+    //     documentCode: docCode,
+    //     documentType: type.name.toUpperCase(),
+    //     mrzFormat: format,
+    //     countryCode: fixExceptionalCountry(countryCode),
+    //     issuingState: fixExceptionalCountry(issuing),
+    //     lastName: lastName ?? '',
+    //     firstName: firstName ?? '',
+    //     documentNumber: docNumber ?? '',
+    //     nationality: fixExceptionalCountry(nationality ?? ''),
+    //     birthDate: birthDate,
+    //     expiryDate: expiryDate,
+    //     sex: sex ?? '',
+    //     personalNumber: optional ?? '',
+    //     optionalData: optional ?? '',
+    //     valid: validation,
+    //     checkDigits: CheckDigits(document: true, birth: true, expiry: true, optional: true),
+    //     ocrData: ocr,
+    //   );
+    //   mrzLogger?.call(OcrMrzLog(rawText: ocr.text, rawMrzLines: rawMrzLines, fixedMrzLines: fixedMrzLines, validation: validation, extractedData: result.toJson()));
+    //   return result;
+    // } else {
+    //   // log("No Ocr");
+    // }
+    // return null;
   }
 
   static String normalize(String line, {int len = 44}) {

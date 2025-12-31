@@ -703,6 +703,31 @@ class OcrMrzAggregator {
 
   int get framesSeen => _framesSeen;
 
+  Map<String, Map<String, int>> getFieldsSummary() {
+    return {
+      'country': _country.snapshot(),
+      'docCode': _docCode.snapshot(),
+      'issuing': _issuing.snapshot(),
+      'docNo': _docNo.snapshot(),
+      'lname': _lname.snapshot(),
+      'fname': _fname.snapshot(),
+      'nat': _nat.snapshot(),
+      'sex': _sex.snapshot(),
+      'pnum': _pnum.snapshot(),
+      'opt': _opt.snapshot(),
+      'line1': _line1.snapshot(),
+      'line2': _line2.snapshot(),
+      'line3': _line3.snapshot(),
+      'birth': _birth.snapshot(),
+      'expiry': _expiry.snapshot(),
+      'docType': _docType.snapshot(),
+      'birthCheck': _birthCheck.snapshot(),
+      'expCheck': _expCheck.snapshot(),
+      'numCheck': _numCheck.snapshot(),
+      'numWithCheck': _numWithCheck.snapshot(),
+    };
+  }
+
   bool matchValidationCount(OcrMrzCountValidation? countValidation, OcrMrzSetting setting) {
     int _pickCnt(MajorityCounter<String> c) => c.top()?.$2 ?? 0;
     if (countValidation == null) {

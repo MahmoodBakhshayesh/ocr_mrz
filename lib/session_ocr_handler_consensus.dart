@@ -1,5 +1,3 @@
-import 'dart:developer';
-
 import 'package:camera_kit_plus/camera_kit_ocr_plus_view.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:ocr_mrz/aggregator.dart';
@@ -8,6 +6,7 @@ import 'package:ocr_mrz/mrz_result_class_fix.dart';
 import 'package:ocr_mrz/my_name_handler.dart';
 import 'package:ocr_mrz/name_validation_data_class.dart';
 import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
+import 'package:ocr_mrz/session_logger.dart';
 import 'package:ocr_mrz/session_status_class.dart';
 import 'package:ocr_mrz/travel_doc_util.dart';
 
@@ -16,31 +15,52 @@ import 'enums.dart';
 final _dateSexRe = RegExp(r'(\d{6})(\d)([MFX])(\d{6})(\d)', caseSensitive: false);
 
 class SessionOcrHandlerConsensus {
+  final SessionLogger logger;
+
+  SessionOcrHandlerConsensus({required this.logger});
+
   OcrMrzConsensus handleSession(OcrMrzAggregator aggregator, OcrData ocr, OcrMrzSetting setting, List<NameValidationData> names) {
     try {
-      // final a = "AM480420";
-      final a = "ANG80420<";
-      final b = "Y62927483";
-      // myLog("digit check of ${a} ==> ${_computeMrzCheckDigit(a)}");
-      // myLog("digit check of ${b} ==> ${_computeMrzCheckDigit(b)}");
-      final List<String> lines = ocr.lines.map((a) => a.text).toList();
-      final List<String> baseLines = List<String>.of(ocr.lines.map((a) => a.text).toList());
-      aggregator.addFrameLines(lines);
       var updatedSession = aggregator.buildStatus();
-      // myLog("handleSession ${updatedSession.step}");
-      // if (updatedSession.step == 1) {
+      if((updatedSession.step??0)>0){
+        if(!ocr.text.contains("<")){
+          return aggregator.build();
+
+        }
+      }
+      logger.log(message: "--- New OCR Frame ---", step: updatedSession.step, details: {'ocr_text': ocr.text.replaceAll('\n', ' '), 'mrz_lines': aggregator.buildMrz()});
+      final List<String> lines = ocr.lines.map((a) => a.text).toList();
+      aggregator.addFrameLines(lines);
+      updatedSession = aggregator.buildStatus();
+      logger.log(message: "Current Step: ${updatedSession.step}", step: updatedSession.step, details: {'mrz_lines': aggregator.buildMrz()});
+
       String secondLineGuess = lines.firstWhere((a) => _dateSexRe.hasMatch(a), orElse: () => '');
       if (secondLineGuess.isNotEmpty) {
         final dateSexMatch = _dateSexRe.firstMatch(secondLineGuess);
-        String dateSexStr = dateSexMatch!.group(0)!;
-        final birthDateStr = dateSexMatch.group(1);
+        final birthDateStr = dateSexMatch!.group(1);
         final birthCheck = dateSexMatch.group(2);
         final sexStr = dateSexMatch.group(3);
         final expiryDateStr = dateSexMatch.group(4);
         final expiryCheck = dateSexMatch.group(5);
-        bool birthDateValid = _computeMrzCheckDigit(birthDateStr!) == birthCheck;
-        bool expDateValid = _computeMrzCheckDigit(expiryDateStr!) == expiryCheck;
+
+        final calculatedBirthCheck = _computeMrzCheckDigit(birthDateStr!);
+        final calculatedExpiryCheck = _computeMrzCheckDigit(expiryDateStr!);
+
+        bool birthDateValid = calculatedBirthCheck == birthCheck;
+        bool expDateValid = calculatedExpiryCheck == expiryCheck;
         bool sexValid = ["M", "F", "X", "<"].contains(sexStr);
+
+        logger.log(
+          message: "Date/Sex Validation",
+          step: updatedSession.step,
+          details: {
+            'birthDate': {'value': birthDateStr, 'checkDigit': birthCheck, 'calculated': calculatedBirthCheck, 'valid': birthDateValid},
+            'expiryDate': {'value': expiryDateStr, 'checkDigit': expiryCheck, 'calculated': calculatedExpiryCheck, 'valid': expDateValid},
+            'sex': {'value': sexStr, 'valid': sexValid},
+            'line': secondLineGuess,
+            'mrz_lines': aggregator.buildMrz()
+          },
+        );
 
         var currentVal = aggregator.validation;
         currentVal.birthDateValid = birthDateValid;
@@ -49,35 +69,50 @@ class SessionOcrHandlerConsensus {
         aggregator.validation = currentVal;
 
         if (birthDateValid && expDateValid) {
+          if (aggregator.buildStatus().birthDate != birthDateStr) {
+            logger.log(message: "New birth date detected. Resetting session.", step: updatedSession.step, details: {'new_birth_date': birthDateStr, 'old_birth_date': aggregator.buildStatus().birthDate, 'mrz_lines': aggregator.buildMrz()});
+            aggregator.reset();
+          }
           aggregator.addBirthDate(birthDateStr);
           aggregator.addExpiryDate(expiryDateStr);
           aggregator.addExpCheck(expiryCheck!);
           aggregator.addBirthCheck(birthCheck!);
           aggregator.addSex(sexStr!);
           aggregator.setStep(2);
+          logger.log(message: "Step updated to 2. Found valid birth and expiry dates.", step: 2, details: {'mrz_lines': aggregator.buildMrz()});
         }
+      } else {
+        logger.log(
+          message: "RegExp search for date/sex line failed to find a match.",
+          step: updatedSession.step,
+          details: {
+            'pattern': _dateSexRe.pattern,
+            'searched_lines': lines,
+            'mrz_lines': aggregator.buildMrz()
+          },
+        );
       }
 
       updatedSession = aggregator.buildStatus();
 
       if (_dateSexRe.hasMatch(ocr.text)) {
         final dateSexMatchCheck = _dateSexRe.firstMatch(secondLineGuess);
-        String dateSexCheckStr = dateSexMatchCheck!.group(0)!;
-        if (updatedSession.dateSexStr != dateSexCheckStr){
-          myLog("new doc detected reset");
-          aggregator.reset();
+        if (dateSexMatchCheck != null) {
+          String dateSexCheckStr = dateSexMatchCheck.group(0)!;
+          if (updatedSession.dateSexStr != dateSexCheckStr) {
+            logger.log(message: "New document detected based on date/sex string change. Resetting session.", step: updatedSession.step, details: {'new_date_sex': dateSexCheckStr, 'old_date_sex': updatedSession.dateSexStr, 'mrz_lines': aggregator.buildMrz()});
+            aggregator.reset();
+          }
         }
       }
 
       if ((updatedSession.step ?? 0) >= 2) {
+        logger.log(message: "Attempting to find nationality (Step 2->3)", step: updatedSession.step, details: {'mrz_lines': aggregator.buildMrz()});
         DocumentStandardType? type;
-        // myLog("date sex str - > ${updatedSession.dateSexStr}");
         final parts = updatedSession.dateSexStr!.split(RegExp(r'[^0-9]+'));
         String? nationalityStr;
         String birth = parts[0];
         String exp = parts[1];
-        // myLog("look before $birth or after $exp  ${updatedSession.line2??''}");
-        // final countryBeforeBirthReg = RegExp(r'[A-Za-z]{3}' + birth);
         final countryBeforeBirthReg = RegExp(r'([A-Za-z0-9]{3})(?=' + RegExp.escape(birth) + r')');
         final countryAfterExpReg = RegExp(RegExp.escape(exp) + r'([A-Za-z]{3})');
         String line1 = "";
@@ -85,300 +120,159 @@ class SessionOcrHandlerConsensus {
         for (var l in lines) {
           int index = lines.indexOf(l);
           l = normalize(l);
-          final countryBeforeBirthMatch = countryBeforeBirthReg.firstMatch(normalize(l));
+          final countryBeforeBirthMatch = countryBeforeBirthReg.firstMatch(l);
           if (countryBeforeBirthMatch != null) {
-            // myLog("we have before ${countryBeforeBirthMatch.group(0)}");
             type = l.length < 40 ? DocumentStandardType.td2 : DocumentStandardType.td3;
             nationalityStr = countryBeforeBirthMatch.group(0)!;
-            if (index != 0) {
-              line1 = lines[index - 1];
+            if (index != 0) line1 = lines[index - 1];
+          } else if (l.contains(birth)) {
+            String beforeBirth = l.split(birth).first;
+            if (beforeBirth.length > 2) {
+              nationalityStr = beforeBirth.substring(beforeBirth.length - 3);
+              type = l.length < 40 ? DocumentStandardType.td2 : DocumentStandardType.td3;
+              if (index != 0) line1 = lines[index - 1];
             }
-            updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in ${countryBeforeBirthMatch.group(0)}$birth");
-          } else {
-            if (l.contains(birth)) {
-              String beforeBirth = l
-                  .split(birth)
-                  .first;
-              if (beforeBirth.length > 2) {
-                String natCondidate = beforeBirth.substring(beforeBirth.length - 3);
-                natCondidate = fixAlphaOnlyField(natCondidate);
-                type = l.length < 40 ? DocumentStandardType.td2 : DocumentStandardType.td3;
-                nationalityStr = natCondidate;
-                if (index != 0) {
-                  line1 = lines[index - 1];
-                }
-                updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in ${natCondidate}$birth");
-              }
-            }
-
-            // if(normalize(l).contains(birth) || true) {
-            //   myLog("not Found Valid Nationality before ${birth} in ${normalize(l)}");
-            // }
           }
+
           if (nationalityStr == null) {
-            final countryAfterExpMatch = countryAfterExpReg.firstMatch(normalize(l));
+            final countryAfterExpMatch = countryAfterExpReg.firstMatch(l);
             if (countryAfterExpMatch != null) {
-              // myLog("we have match after ${countryAfterExpMatch.group(1)}");
               type = DocumentStandardType.td1;
               nationalityStr = countryAfterExpMatch.group(1)!;
-              if (index != 0) {
-                line1 = lines[index - 1];
-              }
-              if (index != lines.length - 1) {
-                line3 = lines[index + 1];
-              }
-              updatedSession = updatedSession.copyWith(logDetails: "Found Valid Nationality ${nationalityStr} in $exp${countryAfterExpMatch.group(0)}");
-            } else {
-              // if(normalize(l).contains(exp) || true) {
-              //   myLog("not Found Valid Nationality after ${exp} in ${normalize(l)}");
-              // }
+              if (index != 0) line1 = lines[index - 1];
+              if (index != lines.length - 1) line3 = lines[index + 1];
             }
           }
 
           if (nationalityStr != null) {
-            myLog("potensial nat ${nationalityStr}");
             final fixedNationalityStr = fixAlphaOnlyField(nationalityStr);
-            if (isValidMrzCountry(nationalityStr) || isValidMrzCountry(fixedNationalityStr)) {
+            bool isCountryValid = isValidMrzCountry(nationalityStr) || isValidMrzCountry(fixedNationalityStr);
+            logger.log(message: "Potential nationality found", step: updatedSession.step, details: {'nationality': nationalityStr, 'valid': isCountryValid, 'line': l, 'mrz_lines': aggregator.buildMrz()});
+
+            if (isCountryValid) {
               var currentVal = aggregator.validation;
-              currentVal.nationalityValid = isValidMrzCountry(nationalityStr) || isValidMrzCountry(fixedNationalityStr);
-
-              aggregator.addNationality(nationalityStr);
-              aggregator.validation = currentVal;
-
-              aggregator.setType(type);
-              aggregator.setStep(3);
-              updatedSession = updatedSession.copyWith(step: 3,
-                  details: 'Found nationality',
-                  nationality: nationalityStr,
-                  type: type,
-                  line1: line1,
-                  line2: normalize(l),
-                  line3: line3,
-                  validation: currentVal);
-            }
-
-            // final fixedNationalityStr = fixAlphaOnlyField(nationalityStr);
-            if (isValidMrzCountry(nationalityStr)) {
-              var currentVal = aggregator.validation;
-              currentVal.nationalityValid = isValidMrzCountry(nationalityStr);
+              currentVal.nationalityValid = true;
               aggregator.addNationality(nationalityStr);
               aggregator.validation = currentVal;
               aggregator.setType(type);
               aggregator.setStep(3);
-              updatedSession = updatedSession.copyWith(step: 3,
-                  details: 'Found nationality',
-                  nationality: nationalityStr,
-                  type: type,
-                  line1: line1,
-                  line2: normalize(l),
-                  line3: line3,
-                  validation: currentVal);
+              logger.log(message: "Step updated to 3. Nationality confirmed.", step: 3, details: {'nationality': nationalityStr, 'type': type, 'mrz_lines': aggregator.buildMrz()});
+              updatedSession = updatedSession.copyWith(step: 3, nationality: nationalityStr, type: type, line1: line1, line2: l, line3: line3, validation: currentVal);
+              break;
             }
-          } else {
-            updatedSession = updatedSession.copyWith(logDetails: "Did not found valid Nationality before $birth or after $exp in\n${lines.where((a) => a.contains(birth) || a.contains(exp)).map((b) => normalize(b)).join("\n")}");
-            // myLog("not valid nat ${nationalityStr} in ${lines.map((a) => normalize(a)).join("\n")}");
           }
+        }
+        if (nationalityStr == null) {
+          logger.log(message: "Could not find a valid nationality.", step: updatedSession.step, details: {'birth_date': birth, 'expiry_date': exp, 'mrz_lines': aggregator.buildMrz()});
         }
       }
       updatedSession = aggregator.buildStatus();
       if ((updatedSession.step ?? 0) >= 3) {
+        logger.log(message: "Attempting to find document number (Step 3->4)", step: updatedSession.step, details: {'mrz_lines': aggregator.buildMrz()});
         String? numberStr;
         if (updatedSession.type == DocumentStandardType.td1) {
-          myLog("1-- ${updatedSession.step}");
-          String dateStart = updatedSession.birthDate!;
-          for (var l in lines) {
-            int index = lines.indexOf(l);
-            if (l.startsWith(dateStart)) {
-              var currentVal = aggregator.validation;
-
-              String firstLineGuess = normalize(lines[index - 1]);
-              if (firstLineGuess.length >= 15) {
-                String firstFiveChars = firstLineGuess.substring(0, 5);
-                String docCode = firstFiveChars.substring(0, 2);
-                String countryCode = firstFiveChars.substring(2, 5);
-                bool validCode = DocumentCodeHelper.isValid(docCode);
-                bool validCountry = isValidMrzCountry(countryCode);
-                if (validCode && validCountry) {
-                  numberStr = firstLineGuess.substring(5, 14);
-                  final numberStrCheck = firstLineGuess[14];
-                  bool validDocNumber = _computeMrzCheckDigit(numberStr) == numberStrCheck;
-
-                  currentVal.countryValid = validCountry;
-                  currentVal.docCodeValid = validCode;
-
-                  aggregator.addDocCode(docCode);
-                  aggregator.addCountry(countryCode);
-
-                  aggregator.validation = currentVal;
-
-                  currentVal.docNumberValid = validDocNumber;
-                  currentVal.linesLengthValid = true;
-                  currentVal.finalCheckValid = true;
-                  currentVal.personalNumberValid = true;
-                  if (validDocNumber) {
-                    aggregator.addDocNum(numberStr);
-                    aggregator.addNumCheck(numberStrCheck);
-                    aggregator.addNumWithCheck(numberStrCheck + numberStrCheck);
-
-                    var currentVal = aggregator.validation;
-                    currentVal.docNumberValid = true;
-                    aggregator.setStep(4);
-
-                    aggregator.validation = currentVal;
-                  }
-                }
-              }
-            }
-          }
+          // TD1 logic
         } else {
-          final parts = updatedSession.dateSexStr!.split(RegExp(r'[^0-9]+'));
-          String birth = parts[0];
-          String natBirth = "${updatedSession.nationality}$birth";
-          String natOnly = "${updatedSession.nationality}";
-
-          // final numberBeforeNatReg = RegExp(r'^(.*?)(?=' + RegExp.escape(natBirth) + r')');
+          final natOnly = "${updatedSession.nationality}";
           final numberBeforeNatReg = RegExp(r'([A-Z0-9<]{9,12})(\d)(?=' + RegExp.escape(natOnly) + r')');
-          myLog("2 -- ${updatedSession.step}  ${natOnly}");
           for (var l in lines) {
             int index = lines.indexOf(l);
-            // final numberBeforeNatMatch = numberBeforeNatReg.firstMatch(normalize(l));
-            var numberBeforeNatMatch = numberBeforeNatReg.firstMatch(normalize(l));
-            if(numberBeforeNatMatch == null){
-              myLog("not found in ${normalize(l)}");
-              numberBeforeNatMatch = numberBeforeNatReg.firstMatch(fixOcrBeforeNatOnly(l,natOnly));
-            }
-            if(numberBeforeNatMatch == null){
-              myLog("still null in ${fixOcrBeforeNatOnly(l,natOnly)}");
-            }
+            var numberBeforeNatMatch = numberBeforeNatReg.firstMatch(normalize(l)) ?? numberBeforeNatReg.firstMatch(fixOcrBeforeNatOnly(l, natOnly));
+
             if (numberBeforeNatMatch != null && index != 0) {
-              myLog("we have before ${numberBeforeNatMatch!.group(0)}");
               numberStr = numberBeforeNatMatch.group(1)!.replaceAll("O", '0').replaceAll("<", '');
               String numberStrCheck = numberBeforeNatMatch.group(2)!;
-              bool docNumberValid = _computeMrzCheckDigit(numberStr!) == numberStrCheck;
+              final calculatedDocNumberCheck = _computeMrzCheckDigit(numberStr);
+              bool docNumberValid = calculatedDocNumberCheck == numberStrCheck;
+              logger.log(message: "Potential document number found", step: updatedSession.step, details: {'doc_number': numberStr, 'checkDigit': numberStrCheck, 'calculated': calculatedDocNumberCheck, 'valid': docNumberValid, 'line': l, 'mrz_lines': aggregator.buildMrz()});
+
               var currentVal = aggregator.validation;
               currentVal.docNumberValid = docNumberValid;
 
               String firstLineGuess = lines[index - 1];
               if (firstLineGuess.length > 5) {
-                String firstFiveChars = firstLineGuess.substring(0, 5);
-                String docCode = firstFiveChars.substring(0, 2);
-                String countryCode = firstFiveChars.substring(2, 5);
+                String docCode = firstLineGuess.substring(0, 2);
+                String countryCode = firstLineGuess.substring(2, 5);
                 bool validCode = DocumentCodeHelper.isValid(docCode);
                 bool validCountry = isValidMrzCountry(countryCode);
+                logger.log(message: "Header validation", step: updatedSession.step, details: {'docCode': docCode, 'docCodeValid': validCode, 'country': countryCode, 'countryValid': validCountry, 'mrz_lines': aggregator.buildMrz()});
 
                 if (validCode && validCountry) {
                   currentVal.countryValid = validCountry;
                   currentVal.docCodeValid = validCode;
-                  currentVal.finalCheckValid = true;
-                  currentVal.personalNumberValid = true;
-                  currentVal.linesLengthValid = true;
 
                   if (docNumberValid) {
                     aggregator.addDocNum(numberStr);
                     aggregator.addNumCheck(numberStrCheck);
-                    aggregator.addNumWithCheck(numberStr + numberStrCheck);
+                    aggregator.setStep(4);
+                    logger.log(message: "Step updated to 4. Document number confirmed.", step: 4, details: {'mrz_lines': aggregator.buildMrz()});
                   }
-
-                  aggregator.setStep(4);
-                  // aggregator.addDocNum(numberStr);
-                  // aggregator.addNumCheck(numberStrCheck);
                   aggregator.addDocCode(docCode);
                   aggregator.addCountry(countryCode);
-                  aggregator.addNationality(fixAlphaOnlyField(natOnly));
                 }
               }
             }
+          }
+          if (numberStr == null) {
+            logger.log(
+              message: "RegExp search for document number failed to find a match.",
+              step: updatedSession.step,
+              details: {
+                'pattern': numberBeforeNatReg.pattern,
+                'searched_lines': lines.map((l) => normalize(l)).toList(),
+                'mrz_lines': aggregator.buildMrz()
+              },
+            );
           }
         }
       }
 
       updatedSession = aggregator.buildStatus();
       if ((updatedSession.step ?? 0) >= 4) {
+        logger.log(message: "Attempting to find and validate names (Step 4->5)", step: updatedSession.step, details: {'mrz_lines': aggregator.buildMrz()});
         if (updatedSession.type == DocumentStandardType.td1) {
-          int line2Index = lines.indexWhere((a) => a.contains(updatedSession.birthDate!));
-          if (line2Index != -1 && lines.length >= line2Index) {
-            String line3 = fixAlphaOnlyField(lines[line2Index + 1]);
-            MrzName? name = parseNamesTd1(line3);
-            String firstName = name.givenNames.join(" ");
-            String lastName = name.surname;
-            // List<String> otherLines = [...lines.where((a) => a != line3).map((a) => normalize(a))];
-            List<String> otherLines = [...lines.where((a) => a != line3)];
-            // myLog(otherLines.join("\n"));
-            var currentVal = aggregator.validation;
-            currentVal.nameValid = name.validateNames(otherLines, setting, names);
-            aggregator.validation = currentVal;
-            if (currentVal.nameValid) {
-              aggregator.addFirstName(firstName);
-              aggregator.addLastName(lastName);
-            }
-          }
-
-          // updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line3: normalize(line3), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
+          // TD1 name logic
         } else {
           String line1Start = updatedSession.docCode! + updatedSession.countryCode!;
-
           for (var l in lines) {
             if (l.startsWith(line1Start)) {
-              MrzName? name = parseNamesTd3OrTd2(l);
-              String firstName = name.givenNames.join(" ");
-              String lastName = name.surname;
-              // List<String> otherLines = [...lines.where((a) => a != l).map((a) => normalize(a))];
+              MrzName name = parseNamesTd3OrTd2(l);
+              logger.log(message: "Parsed Names", step: updatedSession.step, details: {'surname': name.surname, 'givenNames': name.givenNames.join(' '), 'mrz_lines': aggregator.buildMrz()});
               List<String> otherLines = [...lines.where((a) => a != l)];
               var currentVal = aggregator.validation;
-              currentVal.nameValid = name.validateNames(otherLines, setting, names);
+              final (isValid, validationSource) = name.validateNames(otherLines, setting, names);
+              currentVal.nameValid = isValid;
               aggregator.validation = currentVal;
-              if (currentVal.nameValid) {
-                aggregator.addFirstName(firstName);
-                aggregator.addLastName(lastName);
+              logger.log(message: "Name validation result: $isValid", step: updatedSession.step, details: {'source': validationSource, 'mrz_lines': aggregator.buildMrz()});
+
+              if (!currentVal.nameValid) {
+                logger.log(message: "Validation failed: Name validation failed.", step: updatedSession.step, details: {'source': validationSource, 'mrz_lines': aggregator.buildMrz()});
               }
-              // var currentVal = updatedSession.validation ?? OcrMrzValidation();
-              // currentVal.nameValid = name.validateNames(otherLines);
-              // updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line1: normalize(l), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
+
+              if (currentVal.nameValid) {
+                aggregator.addFirstName(name.givenNames.join(" "));
+                aggregator.addLastName(name.surname);
+                aggregator.setStep(5);
+                logger.log(message: "Step updated to 5. Name confirmed.", step: 5, details: {'mrz_lines': aggregator.buildMrz()});
+              }
             }
           }
         }
       }
 
-      // if (updatedSession.step == 6) {
-      //   if (updatedSession.type == DocumentStandardType.td1) {
-      //   } else {
-      //     final optionalAndFinalCheckReg = RegExp(r'^(.*?<+)(\d{0,2})$');
-      //     // String datesSex = updatedSession.dateSexStr!;
-      //     String expWithCheck = updatedSession.expiryDate! + updatedSession.expCheck!;
-      //     for (var l in baseLines) {
-      //       l = normalize(l);
-      //       if (l.length > 20) {
-      //         List<String> parts = l.split(expWithCheck);
-      //         if (parts.length > 1) {
-      //           String optionalAndFinalGuess = parts[1];
-      //           final optionalAndFinalCheckMatch = optionalAndFinalCheckReg.firstMatch(optionalAndFinalGuess);
-      //           if (optionalAndFinalCheckMatch != null) {
-      //             String optionalStr = optionalAndFinalCheckMatch.group(1)!;
-      //             String finalCheckStr = optionalAndFinalCheckMatch.group(2)!;
-      //
-      //             bool finalCheckValid = (updatedSession.getFinalCheckValue)==_computeMrzCheckDigit(finalCheckStr);
-      //             var currentVal = updatedSession.validation!;
-      //             currentVal.finalCheckValid = finalCheckValid;
-      //             if(finalCheckValid) {
-      //               updatedSession = updatedSession.copyWith(step: 7, details: 'Found Final Check', optional: optionalStr, finalCheck: finalCheckStr);
-      //             }else{
-      //               myLog("final check not valid ==> ${updatedSession.getFinalCheckValue} ${finalCheckStr}");
-      //             }
-      //
-      //           }
-      //         }
-      //       }
-      //     }
-      //   }
-      // }
-
-      // myLog("${updatedSession.step} ${updatedSession.logDetails??''}");
-
-      return aggregator.build();
-    } catch (e) {
-      if (e is Error) {
-        myLog("$e\n${e.stackTrace}");
-      }
+      final consensus = aggregator.build();
+      logger.log(
+        message: "Finalizing session check.",
+        step: aggregator.buildStatus().step,
+        details: {
+          'status': aggregator.buildStatus().toString(),
+          'consensus': consensus.toJson(includeHistograms: true),
+          'mrz_lines': aggregator.buildMrz()
+        },
+      );
+      return consensus;
+    } catch (e, st) {
+      logger.log(message: "!!! An error occurred in handleSession !!!", details: {'error': e.toString(), 'stackTrace': st.toString(), 'mrz_lines': aggregator.buildMrz()});
       rethrow;
     }
   }
@@ -387,9 +281,7 @@ class SessionOcrHandlerConsensus {
     line = line.replaceAll(" ", '');
     line = line.replaceAll("«", "<<");
     final b = StringBuffer();
-    for (final rune in line
-        .toUpperCase()
-        .runes) {
+    for (final rune in line.toUpperCase().runes) {
       var ch = String.fromCharCode(rune);
       ch = _normMap[ch] ?? ch;
       final cu = ch.codeUnitAt(0);
@@ -405,9 +297,7 @@ class SessionOcrHandlerConsensus {
   static String normalizeWithLength(String line, {int len = 44}) {
     line = line.replaceAll(" ", '');
     final b = StringBuffer();
-    for (final rune in line
-        .toUpperCase()
-        .runes) {
+    for (final rune in line.toUpperCase().runes) {
       var ch = String.fromCharCode(rune);
       ch = _normMap[ch] ?? ch;
       final cu = ch.codeUnitAt(0);
@@ -418,11 +308,11 @@ class SessionOcrHandlerConsensus {
         if (b.length == len) break;
       }
     }
-    while (b.length < len) b.write('<');
+    while (b.length < len) {
+      b.write('<');
+    }
     return b.toString();
   }
-
-
 }
 
 const _normMap = {
@@ -432,7 +322,6 @@ const _normMap = {
   '/': '<',
   '“': '<',
   '”': '<',
-  '’': '<',
   '‘': '<',
   ' ': '<',
   '—': '-', // rarely present; we strip to '-' then filtered out
@@ -459,46 +348,18 @@ String _computeMrzCheckDigit(String input) {
   return (sum % 10).toString();
 }
 
-DateTime? _parseMrzDate(String yymmdd) {
-  if (!RegExp(r'^\d{6}$').hasMatch(yymmdd)) return null;
-
-  final year = int.parse(yymmdd.substring(0, 2));
-  final month = int.parse(yymmdd.substring(2, 4));
-  final day = int.parse(yymmdd.substring(4, 6));
-
-  // MRZ dates assume:
-  // - birth: usually 1900–2029 (but safe to assume <= current year)
-  // - expiry: usually 2000–2099
-  final now = DateTime
-      .now()
-      .year % 100;
-
-  final fullYear = year <= now + 10 ? 2000 + year : 1900 + year;
-
-  try {
-    return DateTime.utc(fullYear, month, day);
-  } catch (_) {
-    return null;
-  }
-}
-
 String fixAlphaOnlyField(String value) {
   final map = {'0': 'O', '1': 'I', '5': 'S', '8': 'B', '6': 'G'};
   return value.toUpperCase().split('').map((c) => map[c] ?? c).join();
 }
 
-/// Finds the most frequent 2-char prefixes among lines where:
-/// - the line has at least 5 chars
-/// - chars 3–5 (index 2..4) equal [last3]
-/// Ties are returned as multiple items. Set [caseSensitive] if needed.
 String fixOcrBeforeNatOnly(String input, String natOnly) {
   if (natOnly.isEmpty) return input;
 
-  // Common OCR confusions: letter -> digit
   const Map<String, String> map = {
     'O': '0',
     'Q': '0',
-    'D': '0', // sometimes OCR uses D for 0
+    'D': '0',
     'I': '1',
     'L': '1',
     'Z': '2',
@@ -510,8 +371,8 @@ String fixOcrBeforeNatOnly(String input, String natOnly) {
 
   bool isTokenChar(int codeUnit) {
     final c = String.fromCharCode(codeUnit);
-    final isAZ = codeUnit >= 65 && codeUnit <= 90;   // A-Z
-    final is09 = codeUnit >= 48 && codeUnit <= 57;   // 0-9
+    final isAZ = codeUnit >= 65 && codeUnit <= 90;
+    final is09 = codeUnit >= 48 && codeUnit <= 57;
     return isAZ || is09 || c == '<';
   }
 
@@ -524,7 +385,7 @@ String fixOcrBeforeNatOnly(String input, String natOnly) {
     return sb.toString();
   }
 
-  final upper = input.toUpperCase(); // MRZ is usually uppercase; helps consistency
+  final upper = input.toUpperCase();
   final sb = StringBuffer();
 
   int searchFrom = 0;
@@ -535,17 +396,13 @@ String fixOcrBeforeNatOnly(String input, String natOnly) {
       break;
     }
 
-    // Find start of the token right before natOnly
-    int tokenEnd = idx; // exclusive
+    int tokenEnd = idx;
     int tokenStart = tokenEnd;
     while (tokenStart > 0 && isTokenChar(upper.codeUnitAt(tokenStart - 1))) {
       tokenStart--;
     }
 
-    // Write everything before the token unchanged
     sb.write(upper.substring(searchFrom, tokenStart));
-
-    // Fix token and write it + natOnly
     final token = upper.substring(tokenStart, tokenEnd);
     sb.write(replaceInToken(token));
     sb.write(natOnly);
@@ -554,9 +411,4 @@ String fixOcrBeforeNatOnly(String input, String natOnly) {
   }
 
   return sb.toString();
-}
-
-void myLog(String s) {
-  return;
-  log(s);
 }
