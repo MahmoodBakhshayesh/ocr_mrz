@@ -1,12 +1,20 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:developer';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:camera_kit_plus/camera_kit_plus_controller.dart';
 import 'package:camera_kit_plus/enums.dart';
 import 'package:flutter/material.dart';
 import 'package:camera_kit_plus/camera_kit_plus.dart';
+import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 import 'package:ocr_mrz/mrz_result_class.dart';
 import 'package:ocr_mrz/my_ocr_handler.dart';
 import 'package:ocr_mrz/my_ocr_handler_new.dart';
+import 'package:ocr_mrz/ocr_mrz_api_config.dart';
 import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
+import 'package:ocr_mrz/online_parse_class.dart';
 import 'package:ocr_mrz/orc_mrz_log_class.dart';
 import 'package:ocr_mrz/passport_util.dart';
 import 'package:ocr_mrz/session_logger.dart';
@@ -29,10 +37,20 @@ class OcrMrzController extends CameraKitPlusController {
   final OcrMrzAggregator aggregator = OcrMrzAggregator();
   late final SessionLogger logger;
   late DateTime _sessionStartTime;
+  
+  late final ValueNotifier<OcrMrzApiConfig?> _apiConfigNotifier;
+  OcrMrzApiConfig? get apiConfig => _apiConfigNotifier.value;
+  set apiConfig(OcrMrzApiConfig? newConfig) => _apiConfigNotifier.value = newConfig;
+  ValueNotifier<OcrMrzApiConfig?> get apiConfigNotifier => _apiConfigNotifier;
 
-  OcrMrzController({SessionLogger? sessionLogger}) {
+  OcrMrzController({SessionLogger? sessionLogger, OcrMrzApiConfig? apiConfig}) {
     logger = sessionLogger ?? SessionLogger();
     _sessionStartTime = DateTime.now();
+    _apiConfigNotifier = ValueNotifier(apiConfig);
+  }
+
+  void changeApiConfig(OcrMrzApiConfig? newConfig) {
+    apiConfig = newConfig;
   }
 
   flashOn() {
@@ -58,6 +76,7 @@ class OcrMrzController extends CameraKitPlusController {
 
   void dispose() {
     logger.dispose();
+    _apiConfigNotifier.dispose();
   }
 
   debug(String s, ParseAlgorithm alg, void Function(OcrMrzResult res) onFoundMrz) {
@@ -67,10 +86,8 @@ class OcrMrzController extends CameraKitPlusController {
         handleOcrNew(ocr, onFoundMrz, OcrMrzSetting(), [], null, []);
         return;
       case ParseAlgorithm.method2:
-        // log("hande ocr");
         handleOcr(ocr, onFoundMrz, OcrMrzSetting(), [], null, []);
       case ParseAlgorithm.method3:
-        // log("hande ocr");
         handleOcr3(ocr, onFoundMrz, OcrMrzSetting(), [], null, []);
     }
   }
@@ -84,7 +101,7 @@ class OcrMrzReader extends StatefulWidget {
   final List<DocumentType> filterTypes;
   final OcrMrzSetting? setting;
   final OcrMrzCountValidation? countValidation;
-  final OcrMrzController? controller;
+  final OcrMrzController controller;
   final List<NameValidationData>? nameValidations;
   final bool showFrame;
   final bool showZoom;
@@ -96,7 +113,7 @@ class OcrMrzReader extends StatefulWidget {
     this.nameValidations,
     this.mrzLogger,
     this.filterTypes = const [],
-    this.controller,
+    required this.controller,
     this.showFrame = true,
     this.showZoom = true,
     this.onSessionChange,
@@ -109,29 +126,126 @@ class OcrMrzReader extends StatefulWidget {
 }
 
 class _OcrMrzReaderState extends State<OcrMrzReader> {
-  late OcrMrzController cameraKitPlusController;
+  // late OcrMrzController cameraKitPlusController;
   late final SessionOcrHandlerConsensus _sessionOcrHandler;
   double zoom = 1.0;
-
   OcrMrzConsensus? improving;
 
+  Timer? _apiTimer;
+  final List<OcrData> _ocrDataBuffer = [];
 
   @override
   void initState() {
     super.initState();
-    cameraKitPlusController = widget.controller ?? OcrMrzController();
+    // cameraKitPlusController = widget.controller ?? OcrMrzController();
     _sessionOcrHandler = SessionOcrHandlerConsensus(
-      logger: cameraKitPlusController.logger,
+      logger: widget.controller.logger,
     );
+
+    widget.controller.apiConfigNotifier.addListener(_onApiConfigChanged);
+    _startApiTimer();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(seconds: 1), () {
-        setState((){});
-        //
-        // cameraKitPlusController.setOcrRotation(widget.setting?.rotation ?? 0);
-        // cameraKitPlusController.setMacro(widget.setting?.macro ?? false);
+        if (mounted) {
+          setState(() {});
+          widget.controller.setOcrRotation(widget.setting?.rotation ?? 0);
+          widget.controller.setMacro(widget.setting?.macro ?? false);
+        }
       });
     });
+  }
+  
+  void _onApiConfigChanged() {
+    _startApiTimer();
+  }
+
+  void _startApiTimer() {
+    _apiTimer?.cancel();
+    _ocrDataBuffer.clear();
+    final apiConfig = widget.controller.apiConfig;
+    if (apiConfig != null) {
+      _apiTimer = Timer.periodic(apiConfig.interval, (_) => _makeApiCall());
+    }
+  }
+
+  void _stopApiTimer() {
+    _apiTimer?.cancel();
+    _apiTimer = null;
+  }
+
+  Future<void> _makeApiCall() async {
+    final apiConfig = widget.controller.apiConfig;
+    if (_ocrDataBuffer.isEmpty || apiConfig == null) {
+      return;
+    }
+
+    final List<OcrData> ocrDataToSend = List.of(_ocrDataBuffer);
+    _ocrDataBuffer.clear();
+
+    try {
+      final request = http.MultipartRequest('POST', Uri.parse(apiConfig.url));
+      request.headers.addAll(apiConfig.headers);
+
+      final data = apiConfig.bodyBuilder(ocrDataToSend);
+      request.fields['data'] = jsonEncode(data);
+
+      if (apiConfig.attachPhoto) {
+        // log("attach photo");
+        final photoPath = await widget.controller.takePicture();
+        if (photoPath != null) {
+          final imageFile = File(photoPath);
+          List<int> imageBytes = await imageFile.readAsBytes();
+
+          img.Image? image = img.decodeImage(Uint8List.fromList(imageBytes));
+          if (image != null) {
+            img.Image resizedImage = image;
+            if (apiConfig.photoMaxWidth != null && image.width > apiConfig.photoMaxWidth!) {
+              resizedImage = img.copyResize(image, width: apiConfig.photoMaxWidth);
+            }
+            
+            imageBytes = img.encodeJpg(resizedImage, quality: apiConfig.photoQuality);
+          }
+
+          request.files.add(http.MultipartFile.fromBytes(
+            'attachFiles',
+            imageBytes,
+            filename: 'mrz_scan.jpg',
+          ));
+        }
+      }else{
+        // log("no photo Attach");
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        ApiResponse res = ApiResponse.fromJson(jsonResponse);
+        if(res.success){
+          final OcrMrzResult result = res.toOcrMrzResult();
+          result.scanDuration = DateTime.now().difference(widget.controller._sessionStartTime);
+
+          if (result.valid.docNumberValid) {
+            _handleResultFound(result);
+          }
+        }
+      } else {
+        widget.controller.logger.log(message: "API call failed with status code ${response.statusCode}", details: {'body': response.body});
+      }
+    } catch (e) {
+      widget.controller.logger.log(message: "API call threw an exception", details: {'error': e.toString()});
+    }
+  }
+
+  void _handleResultFound(OcrMrzResult result) {
+    _stopApiTimer();
+    widget.controller.logger.flush(reason: LogFlushReason.success);
+
+    widget.onFoundMrz(result);
+    widget.controller.resetSession();
+    _startApiTimer();
   }
 
   @override
@@ -140,43 +254,46 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
 
     if (oldWidget.setting?.macro != widget.setting?.macro) {
       log("should change macro");
-      cameraKitPlusController.setMacro(widget.setting?.macro ?? false);
+      widget.controller.setMacro(widget.setting?.macro ?? false);
     }
     if (oldWidget.setting?.rotation != widget.setting?.rotation) {
       log("should change rotation");
-      cameraKitPlusController.setOcrRotation(widget.setting?.rotation ?? 0);
+      widget.controller.setOcrRotation(widget.setting?.rotation ?? 0);
     }
   }
 
   @override
   void dispose() {
-    // If the widget created the controller, it's responsible for disposing of it.
+    _stopApiTimer();
+    widget.controller.apiConfigNotifier.removeListener(_onApiConfigChanged);
     if (widget.controller == null) {
-      cameraKitPlusController.dispose();
+      widget.controller.dispose();
     }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-
     return CameraKitOcrPlusView(
       showFrame: widget.showFrame,
       showZoomSlider: widget.showZoom,
-      controller: cameraKitPlusController,
+      controller: widget.controller,
       onTextRead: (c) {
+        if (widget.controller.apiConfig != null) {
+          _ocrDataBuffer.add(c);
+        }
         if (widget.setting?.algorithm == ParseAlgorithm.method3) {
           OcrMrzLog log = OcrMrzLog(rawText: c.text, rawMrzLines: c.lines.where((a) => a.text.contains("<")).map((a) => a.text).toList(), fixedMrzLines: [], validation: OcrMrzValidation(), extractedData: {});
           widget.mrzLogger?.call(log);
         } else {
-          final newCon = _sessionOcrHandler.handleSession(cameraKitPlusController.aggregator, c, widget.setting ?? OcrMrzSetting(), widget.nameValidations ?? []);
+          final newCon = _sessionOcrHandler.handleSession(widget.controller.aggregator, c, widget.setting ?? OcrMrzSetting(), widget.nameValidations ?? []);
           improving = newCon;
           widget.onConsensusChanged?.call(newCon);
-          if (cameraKitPlusController.aggregator.matchValidationCount(widget.countValidation, widget.setting ?? OcrMrzSetting())) {
+          if (widget.controller.aggregator.matchValidationCount(widget.countValidation, widget.setting ?? OcrMrzSetting())) {
             if (newCon.toResult().matchSetting(widget.setting ?? OcrMrzSetting())) {
               final result = newCon.toResult();
-              result.scanDuration = DateTime.now().difference(cameraKitPlusController._sessionStartTime);
-              final mrzLines = cameraKitPlusController.aggregator.buildMrz();
+              result.scanDuration = DateTime.now().difference(widget.controller._sessionStartTime);
+              final mrzLines = widget.controller.aggregator.buildMrz();
               if (mrzLines.isNotEmpty) {
                 result.line1 = mrzLines[0];
                 if (mrzLines.length > 1) {
@@ -186,12 +303,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
                   result.line3 = mrzLines[2];
                 }
               }
-
-              // Flush logs before sending the result
-              cameraKitPlusController.logger.flush();
-
-              widget.onFoundMrz(result);
-              cameraKitPlusController.resetSession();
+              _handleResultFound(result);
             }
           }
           if (mounted) {
@@ -203,11 +315,6 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
   }
 }
 
-//
-// /// General MRZ handler: tries passport (TD3) and visa (MRV-A/MRV-B),
-// /// picks the better-scoring parse, and calls [onFoundMrz] with OcrMrzResult.
-// /// General MRZ handler: tries ONE parser, and only if it fails, tries the other.
-// /// Set [tryPassportFirst] to control the order.
 void handleOcr(
   OcrData ocr,
   void Function(OcrMrzResult res) onFoundMrz,
@@ -218,30 +325,25 @@ void handleOcr(
   bool tryPassportFirst = true,
 }) {
   try {
-    final s = setting ?? OcrMrzSetting();
-    // log(ocr.text);
     Map<String, dynamic>? result;
     if (filterTypes.isEmpty || filterTypes.contains(DocumentType.passport)) {
-      result = tryParseMrzFromOcrLines(ocr, s, nameValidations, mrzLogger);
+      result = tryParseMrzFromOcrLines(ocr, setting ?? OcrMrzSetting(), nameValidations, mrzLogger);
     }
     if (filterTypes.isEmpty || filterTypes.contains(DocumentType.visa)) {
-      result ??= tryParseVisaMrzFromOcrLines(ocr, s, nameValidations, mrzLogger);
+      result ??= tryParseVisaMrzFromOcrLines(ocr, setting ?? OcrMrzSetting(), nameValidations, mrzLogger);
     }
     if (filterTypes.isEmpty || filterTypes.contains(DocumentType.travelDocument1)) {
-      result ??= tryParseTD1FromOcrLines(ocr, s, nameValidations, mrzLogger);
+      result ??= tryParseTD1FromOcrLines(ocr, setting ?? OcrMrzSetting(), nameValidations, mrzLogger);
     }
     if (filterTypes.isEmpty || filterTypes.contains(DocumentType.travelDocument2)) {
-      result ??= tryParseTD2FromOcrLines(ocr, s, nameValidations, mrzLogger);
+      result ??= tryParseTD2FromOcrLines(ocr, setting ?? OcrMrzSetting(), nameValidations, mrzLogger);
     }
 
     if (result == null) {
-      // log("no result");
-      return; // nothing parsed
+      return;
     }
 
     final parsed = OcrMrzResult.fromJson(result);
-    // log("✅ Valid ${parsed.isVisa ? 'Visa' : 'Passport'} MRZ (${parsed.mrzFormat.name}):");
-    // log("\n${parsed.mrzLines.join("\n")}");
     onFoundMrz(parsed);
   } catch (e, st) {
     log(e.toString());
@@ -259,7 +361,6 @@ void handleOcrNew(
   bool tryPassportFirst = true,
 }) {
   try {
-    final s = setting ?? OcrMrzSetting();
     var result = MyOcrHandler.handle(ocr, mrzLogger);
     if (result != null) {
       onFoundMrz(result);
@@ -280,7 +381,6 @@ void handleOcr3(
   bool tryPassportFirst = true,
 }) {
   try {
-    final s = setting ?? OcrMrzSetting();
     var result = MyOcrHandlerNew.handle(ocr, mrzLogger);
     if (result != null) {
       onFoundMrz(result);

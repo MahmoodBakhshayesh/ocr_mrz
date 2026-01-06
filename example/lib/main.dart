@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:ocr_mrz/aggregator.dart';
 import 'package:ocr_mrz/my_ocr_handler.dart';
 import 'package:ocr_mrz/my_ocr_handler_new.dart';
+import 'package:ocr_mrz/ocr_mrz_api_config.dart';
 import 'package:ocr_mrz/ocr_setting_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart';
@@ -38,32 +39,51 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  OcrMrzController controller = OcrMrzController(sessionLogger: SessionLogger(
-    logInterval: Duration(seconds: 1),
-    onLog: (l){
-      // log(l.toString());
-    },
-    onLogBatch: (List<SessionLogEntry> lll,LogFlushReason reason){
-      // final lll = ll.where((a)=>((a.step??0) >0));
-      //
-      // if(lll.isEmpty){
-      //   return;
-      // }
-      log("${lll.length} ==> log count");
-      try {
-        for (var l in lll) {
-          final encodeed = jsonEncode(l.toJson());
-          // log(encodeed);
+  OcrMrzController controller = OcrMrzController(
+    sessionLogger: SessionLogger(
+      logInterval: Duration(seconds: 1),
+      onLog: (l) {
+        // log(l.toString());
+      },
+      onLogBatch: (List<SessionLogEntry> lll, LogFlushReason reason) {
+        // final lll = ll.where((a)=>((a.step??0) >0));
+        //
+        // if(lll.isEmpty){
+        //   return;
+        // }
+        // log("${lll.length} ==> log count");
+        try {
+          for (var l in lll) {
+            final encodeed = jsonEncode(l.toJson());
+            if (l.step != 0) {
+              // log(encodeed);
+            }
+          }
+        } catch (e) {
+          // log("$e");
+          // if(e is Error){
+          //   log("${e.stackTrace}");
+          // }
         }
-      }catch(e){
-        log("$e");
-        if(e is Error){
-          log("${e.stackTrace}");
-        }
-      }
-      log("${reason.name}");
-    }
-  ));
+        // log("${reason.name}");
+      },
+    ),
+    apiConfig: OcrMrzApiConfig(
+      url: "https://documentReader.multidcs.com/api/v1/document",
+      attachPhoto: true,
+      photoQuality: 10,
+      headers: {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2OTVjMjQwZWJiMmQ5MzE1YWZkN2EwYzgiLCJ1c2VyIjoiZmFyaGFuZyIsIm5vbmNlIjoiODMyYTIzNjEtZmU3ZC00YmZmLThlY2QtYTRiMzA4MTVhNGY5IiwiaWF0IjoxNzY3NzAyNDQ5LCJleHAiOjE3Njc3MjQwNDl9.a3KaaIyOSXOpJGtibrjFhXLj31EREknA9Qb-qcdZb8s"},
+      bodyBuilder:
+          (c) => {
+            "relatedId": null,
+            "data": {
+              "rawText": c.map((o)=>o.text).toList()
+
+            },
+          },
+      interval: Duration(seconds: 2),
+    ),
+  );
   bool scanning = true;
   OcrMrzSetting setting = OcrMrzSetting(
     validateBirthDateValid: true,
@@ -75,7 +95,8 @@ class _MyHomePageState extends State<MyHomePage> {
     validateDocNumberValid: false,
     validateNames: true,
     algorithm: ParseAlgorithm.method2,
-    rotation: 0
+    nameValidationMode: NameValidationMode.exact,
+    rotation: 0,
   );
   int logCount = 0;
   OcrMrzLog? lastLog;
@@ -107,9 +128,25 @@ class _MyHomePageState extends State<MyHomePage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: GestureDetector(
           onLongPress: () {
+            // controller.resetSession();
+            log("changeApiConfig");
+            controller.changeApiConfig(OcrMrzApiConfig(
+              url: "https://documentReader.multidcs.com/api/v1/document",
+              attachPhoto: false,
+              photoQuality: 10,
+              headers: {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2OTVjMjQwZWJiMmQ5MzE1YWZkN2EwYzgiLCJ1c2VyIjoiZmFyaGFuZyIsIm5vbmNlIjoiODMyYTIzNjEtZmU3ZC00YmZmLThlY2QtYTRiMzA4MTVhNGY5IiwiaWF0IjoxNzY3NzAyNDQ5LCJleHAiOjE3Njc3MjQwNDl9.a3KaaIyOSXOpJGtibrjFhXLj31EREknA9Qb-qcdZb8s"},
+              bodyBuilder:
 
-            controller.resetSession();
-            // log("reset sesson");
+                  (c) => {
+                "relatedId": null,
+                "data": {
+                  "rawText": c.map((o)=>o.text).toList()
+
+                },
+              },
+              interval: Duration(seconds: 2),
+            ));
+            controller.apiConfigNotifier.value = OcrMrzApiConfig(url: controller.apiConfigNotifier.value?.url??'', headers: controller.apiConfigNotifier.value?.headers??{}, bodyBuilder: (controller.apiConfigNotifier.value?.bodyBuilder)??(a)=>{},attachPhoto: false, interval: Duration(seconds: 2));
           },
           onTap: () {
             showDialog(
@@ -124,7 +161,6 @@ class _MyHomePageState extends State<MyHomePage> {
             builder: (context, value, child) {
 
               return Text("Passport Reader ${sessionList.length}");
-
             },
           ),
         ),
@@ -161,7 +197,6 @@ class _MyHomePageState extends State<MyHomePage> {
               child: Stack(
                 children: [
                   OcrMrzReader(
-
                     onSessionChange: (List<SessionStatus> sl) {
                       if (sl.length > 1) {
                         sessionList = sl;
@@ -183,7 +218,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     onFoundMrz: (a) {
                       if (scanning) {
                         if (a.matchSetting(setting)) {
-                         log("${jsonEncode(a.toDocument()?.toJson())}");
+                          log("${jsonEncode(a.toDocument()?.toJson())}");
 
                           // showFoundPassport(a);
                         }
@@ -250,13 +285,7 @@ class ImprovingResultWidget extends StatelessWidget {
           Row(
             spacing: 4,
             children: [
-              SingularValidationWidget(
-                state: improving.birthDateStat,
-                label: 'Birth Date',
-                valid: improving.valid.birthDateValid,
-                value: improving.birthDate?.toString(),
-                count: improving.birthDateStat.consensusCount,
-              ),
+              SingularValidationWidget(state: improving.birthDateStat, label: 'Birth Date', valid: improving.valid.birthDateValid, value: improving.birthDate?.toString(), count: improving.birthDateStat.consensusCount),
               SingularValidationWidget(
                 state: improving.expiryDateStat,
                 label: 'Expiry Date',
@@ -276,13 +305,7 @@ class ImprovingResultWidget extends StatelessWidget {
           Row(
             spacing: 4,
             children: [
-              SingularValidationWidget(
-                state: improving.documentNumberStat,
-                label: 'Doc NO.',
-                valid: improving.valid.docNumberValid ?? false,
-                value: improving.documentNumber,
-                count: improving.documentNumberStat.consensusCount,
-              ),
+              SingularValidationWidget(state: improving.documentNumberStat, label: 'Doc NO.', valid: improving.valid.docNumberValid ?? false, value: improving.documentNumber, count: improving.documentNumberStat.consensusCount),
               SingularValidationWidget(state: improving.docCodeStat, label: 'Doc Type', valid: improving.valid.docCodeValid ?? false, value: improving.docCode, count: improving.docCodeStat.consensusCount),
               SingularValidationWidget(state: improving.countryCodeStat, label: 'Issuing', valid: improving.valid.countryValid ?? false, value: improving.countryCode, count: improving.countryCodeStat.consensusCount),
             ],
@@ -290,22 +313,8 @@ class ImprovingResultWidget extends StatelessWidget {
           Row(
             spacing: 4,
             children: [
-              SingularValidationWidget(
-                state: improving.firstNameStat,
-                label: 'Firstname.',
-                valid: improving.valid.nameValid ?? false,
-                value: improving.firstName,
-                count: improving.firstNameStat.consensusCount,
-                rowCount: 2,
-              ),
-              SingularValidationWidget(
-                rowCount: 2,
-                state: improving.lastNameStat,
-                label: 'Lastname',
-                valid: improving.valid.nameValid ?? false,
-                value: improving.lastName,
-                count: improving.lastNameStat.consensusCount,
-              ),
+              SingularValidationWidget(state: improving.firstNameStat, label: 'Firstname.', valid: improving.valid.nameValid ?? false, value: improving.firstName, count: improving.firstNameStat.consensusCount, rowCount: 2),
+              SingularValidationWidget(rowCount: 2, state: improving.lastNameStat, label: 'Lastname', valid: improving.valid.nameValid ?? false, value: improving.lastName, count: improving.lastNameStat.consensusCount),
             ],
           ),
           FittedBox(child: Text(improving!.mrzLines.join("\n"))),
@@ -363,7 +372,7 @@ class SingularValidationWidget extends StatelessWidget {
   final int? count;
   final int rowCount;
 
-  const SingularValidationWidget({super.key, required this.label, required this.value, required this.valid, required this.count, required this.state,this.rowCount = 4});
+  const SingularValidationWidget({super.key, required this.label, required this.value, required this.valid, required this.count, required this.state, this.rowCount = 4});
 
   @override
   Widget build(BuildContext context) {
@@ -376,7 +385,7 @@ class SingularValidationWidget extends StatelessWidget {
       child: Stack(
         children: [
           Container(
-            width: (MediaQuery.of(context).size.width - 60) * (1/rowCount),
+            width: (MediaQuery.of(context).size.width - 60) * (1 / rowCount),
             padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
             decoration: BoxDecoration(border: Border.all(color: color, width: 1), color: color.withOpacity(.3), borderRadius: BorderRadius.circular(5)),
             alignment: Alignment.center,

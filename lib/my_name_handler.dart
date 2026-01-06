@@ -100,7 +100,7 @@ MrzName _parseNamesField(String namesField) {
 MrzName parseNamesTd3OrTd2(String line1) {
   // Guard length
   final start = line1.length >= 5 ? 5 : 0;
-  final namesField = line1.substring(start);
+  final namesField = fixAlphaOnlyField(line1.substring(start));
   return _parseNamesField(namesField);
 }
 
@@ -108,6 +108,12 @@ MrzName parseNamesTd3OrTd2(String line1) {
 MrzName parseNamesTd1(String line3) {
   return _parseNamesField(line3);
 }
+
+String fixAlphaOnlyField(String value) {
+  final map = {'0': 'O', '1': 'I', '5': 'S', '8': 'B', '6': 'G'};
+  return value.toUpperCase().split('').map((c) => map[c] ?? c).join();
+}
+
 
 
 MrzName parseMrzNames(DocumentStandardType type, List<String> lines) {
