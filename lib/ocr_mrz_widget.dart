@@ -105,6 +105,7 @@ class OcrMrzReader extends StatefulWidget {
   final List<NameValidationData>? nameValidations;
   final bool showFrame;
   final bool showZoom;
+  final bool isActive;
 
   OcrMrzReader({
     super.key,
@@ -119,6 +120,7 @@ class OcrMrzReader extends StatefulWidget {
     this.onSessionChange,
     this.countValidation,
     this.onConsensusChanged,
+    this.isActive = true,
   });
 
   @override
@@ -126,7 +128,6 @@ class OcrMrzReader extends StatefulWidget {
 }
 
 class _OcrMrzReaderState extends State<OcrMrzReader> {
-  // late OcrMrzController cameraKitPlusController;
   late final SessionOcrHandlerConsensus _sessionOcrHandler;
   double zoom = 1.0;
   OcrMrzConsensus? improving;
@@ -137,13 +138,14 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
   @override
   void initState() {
     super.initState();
-    // cameraKitPlusController = widget.controller ?? OcrMrzController();
     _sessionOcrHandler = SessionOcrHandlerConsensus(
       logger: widget.controller.logger,
     );
 
     widget.controller.apiConfigNotifier.addListener(_onApiConfigChanged);
-    _startApiTimer();
+    if (widget.isActive) {
+      _startApiTimer();
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(seconds: 1), () {
@@ -157,7 +159,9 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
   }
   
   void _onApiConfigChanged() {
-    _startApiTimer();
+    if (widget.isActive) {
+      _startApiTimer();
+    }
   }
 
   void _startApiTimer() {
@@ -176,10 +180,10 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
 
   Future<void> _makeApiCall() async {
     final apiConfig = widget.controller.apiConfig;
-    if (_ocrDataBuffer.isEmpty || apiConfig == null) {
+    if (!widget.isActive || _ocrDataBuffer.isEmpty || apiConfig == null) {
       return;
     }
-
+    
     final List<OcrData> ocrDataToSend = List.of(_ocrDataBuffer);
     _ocrDataBuffer.clear();
 
@@ -191,7 +195,6 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
       request.fields['data'] = jsonEncode(data);
 
       if (apiConfig.attachPhoto) {
-        // log("attach photo");
         final photoPath = await widget.controller.takePicture();
         if (photoPath != null) {
           final imageFile = File(photoPath);
@@ -213,8 +216,6 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
             filename: 'mrz_scan.jpg',
           ));
         }
-      }else{
-        // log("no photo Attach");
       }
 
       final streamedResponse = await request.send();
@@ -240,9 +241,9 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
   }
 
   void _handleResultFound(OcrMrzResult result) {
+    if (!widget.isActive) return;
     _stopApiTimer();
     widget.controller.logger.flush(reason: LogFlushReason.success);
-
     widget.onFoundMrz(result);
     widget.controller.resetSession();
     _startApiTimer();
@@ -251,6 +252,13 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
   @override
   void didUpdateWidget(covariant OcrMrzReader oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      if (widget.isActive) {
+        _startApiTimer();
+      } else {
+        _stopApiTimer();
+      }
+    }
 
     if (oldWidget.setting?.macro != widget.setting?.macro) {
       log("should change macro");
@@ -266,9 +274,6 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
   void dispose() {
     _stopApiTimer();
     widget.controller.apiConfigNotifier.removeListener(_onApiConfigChanged);
-    if (widget.controller == null) {
-      widget.controller.dispose();
-    }
     super.dispose();
   }
 
@@ -279,6 +284,10 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
       showZoomSlider: widget.showZoom,
       controller: widget.controller,
       onTextRead: (c) {
+        if (!widget.isActive) {
+          return;
+        }
+
         if (widget.controller.apiConfig != null) {
           _ocrDataBuffer.add(c);
         }

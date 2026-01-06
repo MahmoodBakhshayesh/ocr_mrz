@@ -71,7 +71,7 @@ class _MyHomePageState extends State<MyHomePage> {
     apiConfig: OcrMrzApiConfig(
       url: "https://documentReader.multidcs.com/api/v1/document",
       attachPhoto: true,
-      photoQuality: 10,
+      photoQuality: 35,
       headers: {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2OTVjMjQwZWJiMmQ5MzE1YWZkN2EwYzgiLCJ1c2VyIjoiZmFyaGFuZyIsIm5vbmNlIjoiODMyYTIzNjEtZmU3ZC00YmZmLThlY2QtYTRiMzA4MTVhNGY5IiwiaWF0IjoxNzY3NzAyNDQ5LCJleHAiOjE3Njc3MjQwNDl9.a3KaaIyOSXOpJGtibrjFhXLj31EREknA9Qb-qcdZb8s"},
       bodyBuilder:
           (c) => {
