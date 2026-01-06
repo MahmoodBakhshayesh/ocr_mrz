@@ -189,7 +189,7 @@ class MyOcrHandlerNew {
     OcrMrzValidation validation = OcrMrzValidation();
 
     DocumentStandardType? type;
-    MrzFormat? format;
+    String? format;
     String? docNumber;
     String? firstName;
     String? lastName;
@@ -271,17 +271,17 @@ class MyOcrHandlerNew {
           // Differentiate TD2 vs TD3 by typical lengths (36 vs 44)
           if (line2.length >= 40) {
             type = DocumentStandardType.td3;
-            format = MrzFormat.TD3;
+            format = "td3";
             rawMrzLines = [line1, line2];
             fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 44)).toList();
           } else if (line2.length >= 36) {
             type = DocumentStandardType.td2;
-            format = MrzFormat.TD2;
+            format = 'td2';
 
             rawMrzLines = [line1, line2];
             fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 36)).toList();
           } else {
-            format = MrzFormat.TD2;
+            format = "td2";
 
             rawMrzLines = [line1, line2];
             fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 30)).toList();
@@ -289,7 +289,7 @@ class MyOcrHandlerNew {
             type = DocumentStandardType.td2;
           }
         } else {
-          format = MrzFormat.TD1;
+          format = "td1";
 
           rawMrzLines = [line1, line2, line3 ?? ''];
           fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 30)).toList();
@@ -535,10 +535,10 @@ class MyOcrHandlerNew {
     OcrMrzResult result = OcrMrzResult(
       line1: firstLineFixed,
       line2: secondLineFixed,
-      format: format??MrzFormat.unknown,
+      format: format??'unknown',
       documentCode: docCode??'',
       documentType: type?.name.toUpperCase()??'',
-      mrzFormat: format??MrzFormat.unknown,
+      mrzFormat: format,
       countryCode: fixExceptionalCountry(countryCode??''),
       issuingState: fixExceptionalCountry(issuing??''),
 

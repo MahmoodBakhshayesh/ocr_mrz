@@ -21,7 +21,7 @@ class SessionStatus {
   final String? details;
   final OcrData? ocr;
   final OcrMrzValidation? validation;
-  final DocumentStandardType? type;
+  final String? type;
   final String? format;
   final String? docNumber;
   final String? firstName;
@@ -86,7 +86,7 @@ class SessionStatus {
     String? details,
     OcrData? ocr,
     OcrMrzValidation? validation,
-    DocumentStandardType? type,
+    String? type,
     String? format,
     String? docNumber,
     String? firstName,
@@ -150,7 +150,7 @@ class SessionStatus {
     details: json["details"],
     ocr: json["ocr"],
     validation: json["validation"] == null ? null : OcrMrzValidation.fromJson(json["validation"]),
-    type: json["type"] == null ? null : DocumentStandardType.values.firstWhere((a) => a.index == json["type"]),
+    type: json["type"],
     format: json["format"],
     docNumber: json["docNumber"],
     firstName: json["firstName"],
@@ -183,7 +183,7 @@ class SessionStatus {
     "details": details,
     "ocr": ocr?.toJson(),
     "validation": validation?.toJson(),
-    "type": type?.index,
+    "type": type,
     "format": format,
     "docNumber": docNumber,
     "firstName": firstName,
@@ -217,10 +217,10 @@ class SessionStatus {
   OcrMrzResult get getOcrResult => OcrMrzResult(
     line1: line1??'',
     line2: line2??'',
-    format: type?.getFormat??MrzFormat.unknown,
+    format: type??'unknown',
     documentCode: docCode??'',
-    documentType: type?.name.toUpperCase()??'',
-    mrzFormat: type?.getFormat??MrzFormat.unknown,
+    documentType: type??'unknown',
+    mrzFormat: type,
     countryCode: countryCode??'',
     issuingState: countryCode??"",
     lastName: lastName??"",

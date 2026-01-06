@@ -165,7 +165,7 @@ class OcrMrzConsensus {
 
   OcrMrzValidation get valid => toResult().valid;
 
-  OcrMrzResult toResult({MrzFormat format = MrzFormat.TD3, MrzFormat mrzFormat = MrzFormat.TD3}) {
+  OcrMrzResult toResult({String format = "td3", String mrzFormat = "td3"}) {
     return OcrMrzResult(
       line1: mrzLines.isEmpty ? "" : mrzLines[0],
       line2: mrzLines.isEmpty ? "" : mrzLines[1],
@@ -291,7 +291,7 @@ class OcrMrzAggregator {
 
   int _framesSeen = 0;
   int _step = 0;
-  DocumentStandardType? _type;
+  String? _type;
 
   /// Add a frame. Only validated values are counted.
   void add(OcrMrzResult r) {
@@ -439,7 +439,7 @@ class OcrMrzAggregator {
     _step = step;
   }
 
-  void setType(DocumentStandardType? type) {
+  void setType(String? type) {
     _type = type;
   }
 
@@ -620,12 +620,12 @@ class OcrMrzAggregator {
     }
 
 
-    if (_type == DocumentStandardType.td1) {
+    if (_type == "td1") {
       String line1 = "${_pickStr(_docCode)?.padRight(2,"<")}${_pickStr(_issuing)}${_pickStr(_docNo)}${_pickStr(_numCheck)}".padRight(30, "<");
       String line2 = "${_pickStr(_birth)}${_pickStr(_birthCheck)}${_pickStr(_sex)}${_pickStr(_expiry)}${_pickStr(_expCheck)}${_pickStr(_nat)}".padRight(30, "<");
       String line3 = "${lastName}<<${firstName}".padRight(30, "<");
       lines.addAll([line1, line2, line3]);
-    } else if (_type == DocumentStandardType.td2 || _type == DocumentStandardType.td3) {
+    } else if (_type == "td2" || _type == "td3") {
       String line1 = "${_pickStr(_docCode)?.padRight(2,"<")}${_pickStr(_issuing)}${"${lastName}<<${firstName}"}".padRight(44, "<");
       String line2 = "${_pickStr(_docNo)?.padRight(9,"<")}${_pickStr(_numCheck)}${_pickStr(_nat)}${_pickStr(_birth)}${_pickStr(_birthCheck)}${_pickStr(_sex)}${_pickStr(_expiry)}${_pickStr(_expCheck)}".padRight(44, "<");
       lines.addAll([line1, line2]);

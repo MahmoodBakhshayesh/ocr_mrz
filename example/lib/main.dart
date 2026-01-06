@@ -43,13 +43,24 @@ class _MyHomePageState extends State<MyHomePage> {
     onLog: (l){
       // log(l.toString());
     },
-    onLogBatch: (List<SessionLogEntry> ll,LogFlushReason reason){
-      final lll = ll.where((a)=>((a.step??0) >0));
-      if(lll.isEmpty){
-        return;
-      }
+    onLogBatch: (List<SessionLogEntry> lll,LogFlushReason reason){
+      // final lll = ll.where((a)=>((a.step??0) >0));
+      //
+      // if(lll.isEmpty){
+      //   return;
+      // }
       log("${lll.length} ==> log count");
-      log(lll.join("\n${'*'*100}\n"));
+      try {
+        for (var l in lll) {
+          final encodeed = jsonEncode(l.toJson());
+          // log(encodeed);
+        }
+      }catch(e){
+        log("$e");
+        if(e is Error){
+          log("${e.stackTrace}");
+        }
+      }
       log("${reason.name}");
     }
   ));

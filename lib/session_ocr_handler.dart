@@ -74,7 +74,7 @@ class SessionOcrHandler {
         }
       }
       if (updatedSession.step == 2) {
-        DocumentStandardType? type;
+        String? type;
         final parts = updatedSession.dateSexStr!.split(RegExp(r'[^0-9]+'));
         String? nationalityStr;
         String birth = parts[0];
@@ -91,7 +91,7 @@ class SessionOcrHandler {
           final countryBeforeBirthMatch = countryBeforeBirthReg.firstMatch(normalize(l));
           if (countryBeforeBirthMatch != null) {
             // log("we have before ${countryBeforeBirthMatch.group(0)}");
-            type = l.length < 40 ? DocumentStandardType.td2 : DocumentStandardType.td3;
+            type = l.length < 40 ? "td2" : "td3";
             nationalityStr = countryBeforeBirthMatch.group(0)!;
             if (index != 0) {
               line1 = lines[index - 1];
@@ -101,7 +101,7 @@ class SessionOcrHandler {
           final countryAfterExpMatch = countryAfterExpReg.firstMatch(normalize(l));
           if (countryAfterExpMatch != null && normalize(l).startsWith(birth)) {
             // log("we have match after ${countryAfterExpMatch.group(1)}");
-            type = DocumentStandardType.td1;
+            type = "td1";
             nationalityStr = countryAfterExpMatch.group(1)!;
             if (index != 0) {
               line1 = lines[index - 1];
@@ -137,7 +137,7 @@ class SessionOcrHandler {
 
       if (updatedSession.step == 3) {
         String? numberStr;
-        if (updatedSession.type == DocumentStandardType.td1) {
+        if (updatedSession.type == "td1") {
           String dateStart = updatedSession.birthDate!;
           for (var l in lines) {
             int index = lines.indexOf(l);
@@ -304,7 +304,7 @@ class SessionOcrHandler {
       // }
 
       if (updatedSession.step == 4) {
-        if (updatedSession.type == DocumentStandardType.td1) {
+        if (updatedSession.type == "td1") {
           if(lines.length>2){
             String line3 = lines[2];
             MrzName? name = parseNamesTd1(line3);

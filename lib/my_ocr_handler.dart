@@ -142,7 +142,7 @@ class MyOcrHandler {
 
     OcrMrzValidation validation = OcrMrzValidation();
     DocumentStandardType? type;
-    MrzFormat? format;
+    String? format;
     String? docNumber;
     String? firstName;
     String? lastName;
@@ -181,16 +181,16 @@ class MyOcrHandler {
       if (rawMrzLines.length < 3) {
         if (rawMrzLines.first.length > 40) {
           type = DocumentStandardType.td3;
-          format = MrzFormat.TD3;
+          format = "td3";
 
           fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 44)).toList();
         } else {
           type = DocumentStandardType.td2;
-          format = MrzFormat.TD2;
+          format = "td2";
           fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 36)).toList();
         }
       } else {
-        format = MrzFormat.TD1;
+        format = "td1";
         type = DocumentStandardType.td1;
         fixedMrzLines = rawMrzLines.map((a) => normalize(a, len: 30)).toList();
       }

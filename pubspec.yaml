@@ -1,6 +1,7 @@
 name: ocr_mrz
 description: "A new Flutter package uses ocr to get mrz"
-version: 0.0.75
+version: 0.0.78
+
 
 
 homepage: https://github.com/MahmoodBakhshayesh/ocr_mrz
@@ -13,7 +14,7 @@ dependencies:
   flutter:
     sdk: flutter
   intl: ^0.20.2
-  camera_kit_plus: ^0.0.41
+  camera_kit_plus: ^0.0.42
 
 
 

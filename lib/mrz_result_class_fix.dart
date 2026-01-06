@@ -26,7 +26,7 @@ class OcrMrzResult {
   String documentCode;
 
   /// Best-known MRZ format (TD3 for passports, MRV-A/MRV-B for visas)
-  MrzFormat mrzFormat;
+  String? mrzFormat;
 
   /// For passports, this is the issuing country (same as before).
   /// For visas, this mirrors the issuing state (so old code keeps working).
@@ -61,7 +61,7 @@ class OcrMrzResult {
   OcrMrzValidation valid;
   CheckDigits checkDigits;
   OcrData ocrData;
-  final MrzFormat format;
+  String format;
 
   /// The duration from the start of the session until the result was found.
   /// This is a runtime value and not part of the JSON serialization.
@@ -122,29 +122,29 @@ class OcrMrzResult {
   factory OcrMrzResult.fromJson(Map<String, dynamic> json) {
     final docType = (json["documentType"] ?? '').toString();
     final formatStr = (json["mrzFormat"] ?? '').toString().toUpperCase();
-    MrzFormat fmt;
+    String fmt;
     switch (formatStr) {
       case 'TD3':
-        fmt = MrzFormat.TD3;
+        fmt = "td3";
         break;
       case 'MRV-A':
       case 'MRV_A':
-        fmt = MrzFormat.MRV_A;
+        fmt = "mrva";
         break;
       case 'MRV-B':
       case 'MRV_B':
-        fmt = MrzFormat.MRV_B;
+        fmt = "mrvb";
         break;
       default:
         // Infer if not provided
         if (docType == 'V') {
           // If lines are 44 => MRV-A, 36 => MRV-B, else unknown
           final l2 = (json["line2"] ?? '') as String? ?? '';
-          fmt = l2.length == 44 ? MrzFormat.MRV_A : (l2.length == 36 ? MrzFormat.MRV_B : MrzFormat.unknown);
+          fmt = l2.length == 44 ? "mrva" : (l2.length == 36 ? "mrvb" : "unknown");
         } else if (docType == 'P') {
-          fmt = MrzFormat.TD3;
+          fmt = "td3";
         } else {
-          fmt = MrzFormat.unknown;
+          fmt = "unknown";
         }
     }
 
@@ -182,7 +182,7 @@ class OcrMrzResult {
       valid: OcrMrzValidation.fromJson(json["valid"] ?? const {}),
       checkDigits: CheckDigits.fromJson(json["checkDigits"] ?? const {}),
       ocrData: OcrData.fromJson(json["ocrData"]),
-      format: MrzFormat.values.firstWhere((f) => f.toString().split('.').last == (json["format"] ?? 'unknown'), orElse: () => MrzFormat.unknown),
+      format: json["format"] ?? 'unknown'
     );
   }
 
@@ -195,7 +195,7 @@ class OcrMrzResult {
       "line3": line3,
       "documentCode": documentCode,
       "documentType": documentType,
-      "mrzFormat": _formatToString(mrzFormat),
+      "mrzFormat": mrzFormat,
       "format": format.toString().split('.').last,
       // Keep both for compatibility
       "issuingState": issuingState,
