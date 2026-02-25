@@ -178,7 +178,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
     _apiTimer = null;
   }
 
-  Future<void> _makeApiCall() async {
+  Future<void> _makeApiCall([bool asLog= false]) async {
     final apiConfig = widget.controller.apiConfig;
     if (!widget.isActive || _ocrDataBuffer.isEmpty || apiConfig == null) {
       return;
@@ -195,6 +195,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
       request.fields['data'] = jsonEncode(data);
 
       if (apiConfig.attachPhoto) {
+        log("_makeApiCall with attach photo");
         final photoPath = await widget.controller.takePicture();
         if (photoPath != null) {
           final imageFile = File(photoPath);
@@ -216,15 +217,21 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
             filename: 'mrz_scan.jpg',
           ));
         }
+      }else{
+        log("_makeApiCall without photo");
       }
+
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-
+      if(asLog){
+        return;
+      }
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
         ApiResponse res = ApiResponse.fromJson(jsonResponse);
         if(res.success){
+          log("we got response from online parser ");
           final OcrMrzResult result = res.toOcrMrzResult();
           result.scanDuration = DateTime.now().difference(widget.controller._sessionStartTime);
 
@@ -233,9 +240,12 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
           }
         }
       } else {
+        log("API call failed with status code ${response.statusCode}");
         widget.controller.logger.log(message: "API call failed with status code ${response.statusCode}", details: {'body': response.body});
       }
     } catch (e) {
+      log("API call threw an exception ${e}");
+
       widget.controller.logger.log(message: "API call threw an exception", details: {'error': e.toString()});
     }
   }
@@ -312,7 +322,13 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
                   result.line3 = mrzLines[2];
                 }
               }
+              _makeApiCall(true);
               _handleResultFound(result);
+
+              widget.controller.logger.flush();
+
+              widget.onFoundMrz(result);
+              widget.controller.resetSession();
             }
           }
           if (mounted) {

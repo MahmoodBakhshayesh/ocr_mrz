@@ -36,8 +36,8 @@ class MrzName {
       for (var l in lines) {
         words.addAll(extractWords(l).map((a) => a.toLowerCase()));
       }
-      final isFirstNameValid = firstName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
-      final isLastNameValid = lastName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
+      final isFirstNameValid =firstName.trim().isEmpty || firstName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
+      final isLastNameValid =lastName.trim().isEmpty ||  lastName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
       
       final res = isLastNameValid && isFirstNameValid;
       if (res) {
@@ -55,8 +55,8 @@ class MrzName {
       for (var l in lines) {
         words.addAll(extractWords(l).map((a) => a.toLowerCase()));
       }
-      final isFirstNameValid = firstName.toLowerCase().split(" ").every((a) => words.any((b)=>b.contains(a.toLowerCase())));
-      final isLastNameValid = lastName.toLowerCase().split(" ").every((a) => words.any((b)=>b.contains(a.toLowerCase())));
+      final isFirstNameValid =firstName.trim().isEmpty ||  firstName.toLowerCase().split(" ").every((a) => words.any((b)=>b.contains(a.toLowerCase())));
+      final isLastNameValid =lastName.trim().isEmpty ||  lastName.toLowerCase().split(" ").every((a) => words.any((b)=>b.contains(a.toLowerCase())));
       final res = isLastNameValid && isFirstNameValid;
       if (res) {
         return (true, 'ocr_lines');

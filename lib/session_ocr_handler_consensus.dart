@@ -306,7 +306,7 @@ class SessionOcrHandlerConsensus {
               aggregator.validation = currentVal;
               if ((updatedSession.step ?? 0) < 5) {
                 logger.log(
-                  message: "Name validation result: $isValid Looking for ${name.surname} ${name.givenNames.join(" ")} in\n ${otherLines.join("\n")}",
+                  message: "Name validation result: $isValid Looking for ${name.surname}| ${name.givenNames.join(" ")} in\n ${otherLines.join("\n")}",
                   step: updatedSession.step,
                   details: {
                     'source': validationSource,
