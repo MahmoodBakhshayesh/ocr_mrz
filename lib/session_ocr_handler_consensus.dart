@@ -220,7 +220,7 @@ class SessionOcrHandlerConsensus {
               bool docNumberValid = calculatedDocNumberCheck == numberStrCheck;
               if ((updatedSession.step ?? 0) < 4) {
                 logger.log(
-                  message: "Potential document number found",
+                  message: "Potential document number found => $numberStr",
                   step: updatedSession.step,
                   details: {
                     'doc_number': numberStr,
@@ -301,7 +301,22 @@ class SessionOcrHandlerConsensus {
               }
               List<String> otherLines = [...lines.where((a) => a != l)];
               var currentVal = aggregator.validation;
-              final (isValid, validationSource) = name.validateNames(otherLines, setting, names);
+              final (isValid, validationSource,fixed) = name.validateNames(otherLines, setting, names);
+              if(isValid){
+                logger.log(
+                  message: "FIXED VALID NAME: ${fixed.full} source ${validationSource}",
+                  step: updatedSession.step,
+                  details: {
+                    'source': validationSource,
+                    'parsed_surname': name.surname,
+                    'parsed_given_names': name.givenNames,
+                    'lookup_lines': otherLines,
+                    'ocr_text': rawOcrTextMultiLine,
+                    'consensus': consensus.toJson(includeHistograms: true),
+                  },
+                );
+              }
+              name  = fixed;
               currentVal.nameValid = isValid;
               aggregator.validation = currentVal;
               if ((updatedSession.step ?? 0) < 5) {

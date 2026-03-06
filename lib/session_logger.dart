@@ -73,6 +73,7 @@ class SessionLogger {
       details: details,
     );
 
+    print(message);
     if (_logs.length >= maxLogSize) {
       _logs.removeAt(0);
     }

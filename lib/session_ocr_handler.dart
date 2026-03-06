@@ -312,7 +312,7 @@ class SessionOcrHandler {
             String lastName = name.surname;
             List<String> otherLines = [...lines.where((a) => a != line3).map((a) => normalize(a))];
             var currentVal = updatedSession.validation ?? OcrMrzValidation();
-            var(a,_) = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
+            var(a,_,__) = name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
             currentVal.nameValid = a;
             updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line3: normalize(line3), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
           }
@@ -326,7 +326,7 @@ class SessionOcrHandler {
               String lastName = name.surname;
               List<String> otherLines = [...lines.where((a) => a != l).map((a) => normalize(a))];
               var currentVal = updatedSession.validation ?? OcrMrzValidation();
-              var(a,_)= name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
+              var(a,_,__)= name.validateNames(otherLines,OcrMrzSetting(nameValidationMode: NameValidationMode.exact),[]);
               currentVal.nameValid = a;
               updatedSession = updatedSession.copyWith(step: 5, details: 'Found names', line1: normalize(l), firstName: firstName, lastName: lastName, validation: currentVal, logDetails: "Found Name: $firstName  $lastName");
             }

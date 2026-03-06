@@ -1,20 +1,18 @@
+import 'package:ocr_mrz/document_class.dart';
 import 'package:ocr_mrz/name_validation_data_class.dart';
 import 'package:ocr_mrz/ocr_mrz_settings_class.dart';
 
+import 'detect name.dart';
 import 'my_ocr_handler.dart';
 
 List<String> extractWords(String text) {
   // Replace case transitions (e.g., a lowercase letter followed by an uppercase) with a space
-  final separated = text.replaceAllMapped(
-    RegExp(r'([a-z])([A-Z])'),
-        (match) => '${match.group(1)} ${match.group(2)}',
-  );
+  final separated = text.replaceAllMapped(RegExp(r'([a-z])([A-Z])'), (match) => '${match.group(1)} ${match.group(2)}');
 
   // Now extract all word-like tokens
   final wordRegExp = RegExp(r'\b\w+\b');
   return wordRegExp.allMatches(separated).map((m) => m.group(0)!).toList();
 }
-
 
 class MrzName {
   final String rawSurname; // e.g. "ERIKSSON"
@@ -23,56 +21,73 @@ class MrzName {
   final List<String> givenNames; // pretty
   final String full; // "ERIKSSON ANNA MARIA"
 
+
+
   MrzName({required this.rawSurname, required this.rawGivenNames, required this.surname, required this.givenNames, required this.full});
 
   String get firstName => givenNames.join(" ");
+
   String get lastName => surname;
 
-  (bool, String) validateNames(Iterable<String> lines, OcrMrzSetting setting,List<NameValidationData> name) {
-    if(setting.nameValidationMode == NameValidationMode.none){
-      return (true, 'none');
-    }else if(setting.nameValidationMode == NameValidationMode.exact){
+  (bool, String, MrzName) validateNames(Iterable<String> lines, OcrMrzSetting setting, List<NameValidationData> names) {
+    if (setting.nameValidationMode == NameValidationMode.none) {
+      return (true, 'none', this);
+    } else if (setting.nameValidationMode == NameValidationMode.exact) {
+      if (names.isNotEmpty) {
+        final nameValidation = names.firstWhereOrNull((a) => noKcomparison(a, firstname: firstName, lastname: lastName));
+
+        if (nameValidation != null) {
+          MrzName fixed = nameValidation.toMrzName();
+          return (true, 'exact provided_list', fixed);
+        } else {
+          final similarName = findMostSimilarByNameData(names, firstname: firstName, lastname: lastName);
+          if (similarName != null) {
+            MrzName fixed = similarName.toMrzName();
+            return (true, 'similar provided_list', fixed);
+          }
+        }
+      }
+
       List<String> words = [];
       for (var l in lines) {
         words.addAll(extractWords(l).map((a) => a.toLowerCase()));
       }
-      final isFirstNameValid =firstName.trim().isEmpty || firstName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
-      final isLastNameValid =lastName.trim().isEmpty ||  lastName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
-      
+      final isFirstNameValid = firstName.trim().isEmpty || firstName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
+      final isLastNameValid = lastName.trim().isEmpty || lastName.toLowerCase().split(" ").every((a) => words.contains(a.toLowerCase()));
+
       final res = isLastNameValid && isFirstNameValid;
       if (res) {
-        return (true, 'ocr_lines');
+        return (true, 'ocr_lines', this);
       }
 
-      final nameValidation = name.any((a)=>"${a.firstName} ${a.lastName} ${a.middleName??''}".toUpperCase().split(" ").contains(firstName.toUpperCase()) || "${a.firstName} ${a.lastName} ${a.middleName??''}".toUpperCase().split(" ").contains(lastName.toUpperCase()));
-      if (nameValidation) {
-        return (true, 'provided_list');
-      }
-      
-      return (false, 'failed');
-    }else {
+      // final nameValidation = name.any((a)=>"${a.firstName} ${a.lastName} ${a.middleName??''}".toUpperCase().split(" ").contains(firstName.toUpperCase()) || "${a.firstName} ${a.lastName} ${a.middleName??''}".toUpperCase().split(" ").contains(lastName.toUpperCase()));
+
+      return (false, 'failed', this);
+    } else {
       List<String> words = [];
       for (var l in lines) {
         words.addAll(extractWords(l).map((a) => a.toLowerCase()));
       }
-      final isFirstNameValid =firstName.trim().isEmpty ||  firstName.toLowerCase().split(" ").every((a) => words.any((b)=>b.contains(a.toLowerCase())));
-      final isLastNameValid =lastName.trim().isEmpty ||  lastName.toLowerCase().split(" ").every((a) => words.any((b)=>b.contains(a.toLowerCase())));
+      final isFirstNameValid = firstName.trim().isEmpty || firstName.toLowerCase().split(" ").every((a) => words.any((b) => b.contains(a.toLowerCase())));
+      final isLastNameValid = lastName.trim().isEmpty || lastName.toLowerCase().split(" ").every((a) => words.any((b) => b.contains(a.toLowerCase())));
       final res = isLastNameValid && isFirstNameValid;
       if (res) {
-        return (true, 'ocr_lines');
+        return (true, 'ocr_lines', this);
       }
 
-      final nameValidation = name.any((a)=>"${a.firstName} ${a.lastName} ${a.middleName??''}".toUpperCase().split(" ").any((b)=>b.contains(firstName.toUpperCase())) || "${a.firstName} ${a.lastName} ${a.middleName??''}".toUpperCase().split(" ").any((b)=>b.contains(lastName.toUpperCase())));
+      final nameValidation = names.any(
+        (a) =>
+            "${a.firstName} ${a.lastName} ${a.middleName ?? ''}".toUpperCase().split(" ").any((b) => b.contains(firstName.toUpperCase())) ||
+            "${a.firstName} ${a.lastName} ${a.middleName ?? ''}".toUpperCase().split(" ").any((b) => b.contains(lastName.toUpperCase())),
+      );
       if (nameValidation) {
-        return (true, 'provided_list');
+        return (true, 'provided_list', this);
       }
 
-      return (false, 'failed');
+      return (false, 'failed', this);
     }
   }
 }
-
-
 
 String _pretty(String s) {
   // Replace '<' with spaces, collapse, trim.
@@ -114,8 +129,6 @@ String fixAlphaOnlyField(String value) {
   return value.toUpperCase().split('').map((c) => map[c] ?? c).join();
 }
 
-
-
 MrzName parseMrzNames(DocumentStandardType type, List<String> lines) {
   switch (type) {
     case DocumentStandardType.td3:
@@ -125,4 +138,12 @@ MrzName parseMrzNames(DocumentStandardType type, List<String> lines) {
       // TD1 is 3×30; line 3 contains names.
       return parseNamesTd1(lines.length >= 3 ? lines[2] : '');
   }
+}
+
+bool noKcomparison(NameValidationData base, {String firstname = "", String lastname = '', String middlename = ""}) {
+  String fake = "${lastname}${middlename}${firstname}".replaceAll("k", '').replaceAll("K", '').replaceAll(" ", '');
+  String fullname = "${base.lastName}${base.middleName??''}${base.firstName}".replaceAll("k", '').replaceAll("K", '').replaceAll(" ", '');
+
+  print("comparing noKcomparison ==> ${fake} vs $fullname");
+  return fake == fullname;
 }
