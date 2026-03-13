@@ -37,7 +37,7 @@ class OcrMrzController extends CameraKitPlusController {
   final OcrMrzAggregator aggregator = OcrMrzAggregator();
   late final SessionLogger logger;
   late DateTime _sessionStartTime;
-  
+
   late final ValueNotifier<OcrMrzApiConfig?> _apiConfigNotifier;
   OcrMrzApiConfig? get apiConfig => _apiConfigNotifier.value;
   set apiConfig(OcrMrzApiConfig? newConfig) => _apiConfigNotifier.value = newConfig;
@@ -157,7 +157,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
       });
     });
   }
-  
+
   void _onApiConfigChanged() {
     if (widget.isActive) {
       _startApiTimer();
@@ -183,7 +183,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
     if (!widget.isActive || _ocrDataBuffer.isEmpty || apiConfig == null) {
       return;
     }
-    
+
     final List<OcrData> ocrDataToSend = List.of(_ocrDataBuffer);
     _ocrDataBuffer.clear();
 
@@ -207,7 +207,7 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
             if (apiConfig.photoMaxWidth != null && image.width > apiConfig.photoMaxWidth!) {
               resizedImage = img.copyResize(image, width: apiConfig.photoMaxWidth);
             }
-            
+
             imageBytes = img.encodeJpg(resizedImage, quality: apiConfig.photoQuality);
           }
 
@@ -341,14 +341,14 @@ class _OcrMrzReaderState extends State<OcrMrzReader> {
 }
 
 void handleOcr(
-  OcrData ocr,
-  void Function(OcrMrzResult res) onFoundMrz,
-  OcrMrzSetting? setting,
-  List<NameValidationData>? nameValidations,
-  void Function(OcrMrzLog log)? mrzLogger,
-  List<DocumentType> filterTypes, {
-  bool tryPassportFirst = true,
-}) {
+    OcrData ocr,
+    void Function(OcrMrzResult res) onFoundMrz,
+    OcrMrzSetting? setting,
+    List<NameValidationData>? nameValidations,
+    void Function(OcrMrzLog log)? mrzLogger,
+    List<DocumentType> filterTypes, {
+      bool tryPassportFirst = true,
+    }) {
   try {
     Map<String, dynamic>? result;
     if (filterTypes.isEmpty || filterTypes.contains(DocumentType.passport)) {
@@ -377,14 +377,14 @@ void handleOcr(
 }
 
 void handleOcrNew(
-  OcrData ocr,
-  void Function(OcrMrzResult res) onFoundMrz,
-  OcrMrzSetting? setting,
-  List<NameValidationData>? nameValidations,
-  void Function(OcrMrzLog log)? mrzLogger,
-  List<DocumentType> filterTypes, {
-  bool tryPassportFirst = true,
-}) {
+    OcrData ocr,
+    void Function(OcrMrzResult res) onFoundMrz,
+    OcrMrzSetting? setting,
+    List<NameValidationData>? nameValidations,
+    void Function(OcrMrzLog log)? mrzLogger,
+    List<DocumentType> filterTypes, {
+      bool tryPassportFirst = true,
+    }) {
   try {
     var result = MyOcrHandler.handle(ocr, mrzLogger);
     if (result != null) {
@@ -397,14 +397,14 @@ void handleOcrNew(
 }
 
 void handleOcr3(
-  OcrData ocr,
-  void Function(OcrMrzResult res) onFoundMrz,
-  OcrMrzSetting? setting,
-  List<NameValidationData>? nameValidations,
-  void Function(OcrMrzLog log)? mrzLogger,
-  List<DocumentType> filterTypes, {
-  bool tryPassportFirst = true,
-}) {
+    OcrData ocr,
+    void Function(OcrMrzResult res) onFoundMrz,
+    OcrMrzSetting? setting,
+    List<NameValidationData>? nameValidations,
+    void Function(OcrMrzLog log)? mrzLogger,
+    List<DocumentType> filterTypes, {
+      bool tryPassportFirst = true,
+    }) {
   try {
     var result = MyOcrHandlerNew.handle(ocr, mrzLogger);
     if (result != null) {
