@@ -7,24 +7,19 @@ String normalizeChar(String char, {bool isDigit = false, bool isAlpha = false}) 
   return char;
 }
 
-/// Normalizes a full line of OCR text.
+/// Aggressively normalizes a line of OCR text to conform to MRZ standards.
 String normalizeLine(String line, int expectedLength) {
-  // Do NOT globally replace C or K. This is handled contextually in name parsing.
-  final b = StringBuffer();
-  for (final rune in line.toUpperCase().runes) {
-    final char = String.fromCharCode(rune);
-    final cu = char.codeUnitAt(0);
-
-    if ((cu >= 65 && cu <= 90) || (cu >= 48 && cu <= 57) || cu == 60) {
-      b.write(char);
-    }
+  // 1. Remove ALL invalid characters (including spaces) and convert to uppercase.
+  // We do NOT globally replace 'K' or 'C' here. That's a contextual name parsing task.
+  String cleanedLine = line.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9<]'), '');
+  
+  // 2. Pad with filler characters to meet the expected length.
+  while (cleanedLine.length < expectedLength) {
+    cleanedLine += '<';
   }
 
-  while (b.length < expectedLength) {
-    b.write('<');
-  }
-
-  return b.length > expectedLength ? b.toString().substring(0, expectedLength) : b.toString();
+  // 3. Truncate if the line is too long.
+  return cleanedLine.length > expectedLength ? cleanedLine.substring(0, expectedLength) : cleanedLine;
 }
 
 int computeMrzCheckDigit(String input) {
@@ -56,7 +51,7 @@ DateTime? parseMrzDate(String yymmdd) {
     final currentYear = DateTime.now().year;
     final currentCentury = (currentYear ~/ 100) * 100;
     final currentTwoDigitYear = currentYear % 100;
-    if (year > currentTwoDigitYear + 5) {
+    if (year > currentTwoDigitYear + 10) { 
       year += currentCentury - 100;
     } else {
       year += currentCentury;

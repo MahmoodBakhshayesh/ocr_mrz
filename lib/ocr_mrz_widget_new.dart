@@ -2,20 +2,18 @@ import 'dart:developer';
 
 import 'package:camera_kit_plus/camera_kit_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:ocr_mrz/mrz_parser/mrz_parser.dart';
 import 'package:ocr_mrz/mrz_parser/mrz_result.dart';
-import 'package:ocr_mrz/ocr_mrz_widget.dart';
-
-import 'ocr_mrz_new_controller.dart'; // We'll still need the controller
+import 'package:ocr_mrz/mrz_parser/mrz_validation_settings.dart';
+import 'package:ocr_mrz/ocr_mrz_new_controller.dart';
 
 class OcrMrzReaderNew extends StatefulWidget {
   final void Function(MrzResult result) onFoundMrz;
   final void Function(Map<String, dynamic> progress)? onProgress;
   final OcrMrzControllerNew controller;
   final bool isActive;
-  final int confidence;
   final bool showFrame;
   final bool showZoom;
+  final MrzValidationSettings validationSettings;
 
   OcrMrzReaderNew({
     super.key,
@@ -23,9 +21,9 @@ class OcrMrzReaderNew extends StatefulWidget {
     required this.controller,
     this.onProgress,
     this.isActive = true,
-    this.confidence = 3,
     this.showFrame = true,
     this.showZoom = true,
+    this.validationSettings = const MrzValidationSettings(),
   });
 
   @override
@@ -33,14 +31,9 @@ class OcrMrzReaderNew extends StatefulWidget {
 }
 
 class _OcrMrzReaderNewState extends State<OcrMrzReaderNew> {
-  late final MrzParser _mrzParser;
-
-  @override
-  void initState() {
-    super.initState();
-    _mrzParser = MrzParser(confidence: widget.confidence);
-  }
-
+  // The state is now simple and holds no parser instance.
+  // The controller is the single source of truth.
+  
   @override
   Widget build(BuildContext context) {
     return CameraKitOcrPlusView(
@@ -53,17 +46,20 @@ class _OcrMrzReaderNewState extends State<OcrMrzReaderNew> {
         }
 
         try {
-          final MrzResult? result = _mrzParser.parse(ocrData);
+          // 1. Always use the parser from the controller.
+          final result = widget.controller.mrzParser.parse(ocrData, settings: widget.validationSettings);
           
-          widget.onProgress?.call(_mrzParser.getProgress(ocrData));
+          // 2. Always get progress from the controller's parser.
+          widget.onProgress?.call(widget.controller.mrzParser.getProgress(ocrData));
 
           if (result != null) {
             log('--- MRZ Found! ---');
-            log(result.toString());
             
+            // 3. Call the user's callback first.
             widget.onFoundMrz(result);
+            
+            // 4. Then, tell the controller to reset the one and only session.
             widget.controller.resetSession(); 
-            _mrzParser.reset();
           }
         } catch (e) {
           log('Error during MRZ parsing: $e');

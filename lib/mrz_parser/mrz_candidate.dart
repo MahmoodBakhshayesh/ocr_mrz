@@ -2,9 +2,11 @@ import 'package:ocr_mrz/mrz_parser/mrz_country_codes.dart';
 import 'package:ocr_mrz/mrz_parser/mrz_result.dart';
 import 'package:ocr_mrz/mrz_parser/mrz_utils.dart';
 
+/// Represents a potential MRZ parsed from a single camera frame.
 class MrzCandidate {
   final List<String> lines;
   MrzFormat format = MrzFormat.Unknown;
+
   String? documentType, countryCode, issuingState, documentNumber, lastName, firstName, sex, nationality, optionalData1, optionalData2;
   DateTime? birthDate, expiryDate;
   bool docNumberValid=false, birthDateValid=false, expiryDateValid=false, optionalDataValid=false, finalCompositeValid=false;
@@ -43,20 +45,14 @@ class MrzCandidate {
   }
   
   void _parseNameField(String rawField) {
-    String separator = '<<';
-    if (!rawField.contains(separator)) {
-      // Fallback: if '<<' is missing, try a single '<' or 'K' as a separator
-      final singleSeparatorRegex = RegExp(r'<|K');
-      if (rawField.contains(singleSeparatorRegex)) {
-         separator = singleSeparatorRegex.firstMatch(rawField)![0]!;
+      String cleanedField = rawField.replaceAll('K', '<');
+      final nameParts = cleanedField.split('<<').where((s) => s.isNotEmpty).toList();
+      if (nameParts.isNotEmpty) {
+        lastName = nameParts[0].replaceAll('<', ' ').trim();
+        if (nameParts.length > 1) {
+          firstName = nameParts.sublist(1).join(' ').replaceAll('<', ' ').trim();
+        }
       }
-    }
-    
-    final nameParts = rawField.split(separator);
-    lastName = nameParts.isNotEmpty ? nameParts[0].replaceAll('<', ' ').trim() : null;
-    if (nameParts.length > 1) {
-      firstName = nameParts.sublist(1).join(' ').replaceAll('<', ' ').trim();
-    }
   }
 
   // --- All individual parsers are now complete and correct ---
@@ -88,7 +84,7 @@ class MrzCandidate {
     optionalData1 = l2.substring(28, 42);
     optionalDataValid = _validate(optionalData1!, l2.substring(42, 43));
     
-    final composite = '$docNumStr${l2.substring(9,10)}$birthStr${l2.substring(19,20)}$expiryStr${l2.substring(27,28)}${optionalData1}${l2.substring(42,43)}';
+    final composite = '${l2.substring(0, 10)}${l2.substring(13, 20)}${l2.substring(21, 43)}';
     finalCompositeValid = _validate(composite, l2.substring(43, 44));
   }
 

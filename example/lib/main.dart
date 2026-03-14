@@ -7,6 +7,7 @@ import 'package:ocr_mrz/my_ocr_handler.dart';
 import 'package:ocr_mrz/my_ocr_handler_new.dart';
 import 'package:ocr_mrz/name_validation_data_class.dart';
 import 'package:ocr_mrz/ocr_mrz_api_config.dart';
+import 'package:ocr_mrz/ocr_mrz_new_controller.dart';
 import 'package:ocr_mrz/ocr_setting_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:ocr_mrz/mrz_result_class_fix.dart';
@@ -86,6 +87,20 @@ class _MyHomePageState extends State<MyHomePage> {
       interval: Duration(seconds: 2),
     ),
   );
+  OcrMrzControllerNew controllerNew = OcrMrzControllerNew(
+    apiConfig: OcrMrzApiConfig(
+      url: "https://documentReader.multidcs.com/api/v1/document2",
+      attachPhoto: false,
+      photoQuality: 35,
+      headers: {"content-type": "application/json", "Authorization": "Bearer $token"},
+      bodyBuilder:
+          (c) => {
+            "relatedId": null,
+            "data": {"rawText": c.map((o) => o.text).toList()},
+          },
+      interval: Duration(seconds: 2),
+    ),
+  );
   bool scanning = true;
   OcrMrzSetting setting = OcrMrzSetting(
     validateBirthDateValid: true,
@@ -131,6 +146,7 @@ class _MyHomePageState extends State<MyHomePage> {
         title: GestureDetector(
           onLongPress: () {
             controller.resetSession();
+            controllerNew.resetSession();
 
             // log("changeApiConfig");
             // controller.changeApiConfig(
@@ -164,12 +180,14 @@ class _MyHomePageState extends State<MyHomePage> {
               builder: (BuildContext context) {
                 return SessionLogHistoryListDialog(historyList: controller.getSessionHistory.value);
               },
+
             );
           },
           child: ValueListenableBuilder<List<SessionStatus>>(
             valueListenable: controller.getSessionHistory,
             builder: (context, value, child) {
               return Text("Passport Reader ${sessionList.length}");
+
             },
           ),
         ),
@@ -205,67 +223,68 @@ class _MyHomePageState extends State<MyHomePage> {
             Expanded(
               child: Stack(
                 children: [
-                  // OcrMrzReaderNew(
-                  //   onFoundMrz: (MrzResult result) {
-                  //     log("we found mrz");
-                  //
-                  //     log(result.toString());
-                  //   },
-                  //   onProgress: (s) {
-                  //     List<String> lines = s["shapedMrz"];
-                  //     log("\n${lines.join("\n")}");
-                  //     String summary = s["summaryString"];
-                  //     log("${summary}");
-                  //     log("${s}");
-                  //
-                  //   },
-                  //
-                  //   controller: controller,
-                  // ),
-                  OcrMrzReader(
+                  OcrMrzReaderNew(
+                    onFoundMrz: (MrzResult result) {
+                      log("we found mrz");
 
-                    onSessionChange: (List<SessionStatus> sl) {
-                      if (sl.length > 1) {
-                        sessionList = sl;
-                        setState(() {});
-                      }
+                      log(result.toString());
                     },
-                    nameValidations: [NameValidationData(lastName: "XXXXXX", firstName: "XXXXXX")],
-                    onConsensusChanged: (a) {
-                      // log("onCon changed");
-                      improving = a;
-                      setState(() {});
-                    },
-                    controller: controller,
-                    showFrame: false,
-                    setting: setting,
+                    onProgress: (s) {
+                      List<String> lines = s["shapedMrz"];
+                      log("\n${lines.join("\n")}");
+                      String summary = s["summaryString"];
+                      log("${summary}");
+                      // log("${s}");
 
-                    countValidation: OcrMrzCountValidation(
-                      // nameValidCount: 5
-                    ),
-                    onFoundMrz: (a) {
-                      log("onFoundMrz ${a.toJson()}");
-                      if (scanning) {
-                        if (a.matchSetting(setting)) {
-                          log("${jsonEncode(a.toDocument()?.toJson())}");
-
-                          // showFoundPassport(a);
-                        }
-                      }
                     },
-                    mrzLogger: (l) {
-                      if (l.rawMrzLines.isNotEmpty && l.fixedMrzLines.join().trim().isNotEmpty) {
-                        logCount++;
-                        lastLog = l;
-                        fixed = l.fixedMrzLines;
-                        setState(() {});
 
-                        // log("log recieved\n${l.fixedMrzLines.join("\n")}");
-                        // log("log setted\n${lastLog!.fixedMrzLines.join("\n")}");
-                        // log(jsonEncode(l.toJson()));
-                      }
-                    },
+
+                    controller: controllerNew,
                   ),
+                  // OcrMrzReader(
+                  //
+                  //   onSessionChange: (List<SessionStatus> sl) {
+                  //     if (sl.length > 1) {
+                  //       sessionList = sl;
+                  //       setState(() {});
+                  //     }
+                  //   },
+                  //   nameValidations: [NameValidationData(lastName: "XXXXXX", firstName: "XXXXXX")],
+                  //   onConsensusChanged: (a) {
+                  //     // log("onCon changed");
+                  //     improving = a;
+                  //     setState(() {});
+                  //   },
+                  //   controller: controller,
+                  //   showFrame: false,
+                  //   setting: setting,
+                  //
+                  //   countValidation: OcrMrzCountValidation(
+                  //     // nameValidCount: 5
+                  //   ),
+                  //   onFoundMrz: (a) {
+                  //     log("onFoundMrz ${a.toJson()}");
+                  //     if (scanning) {
+                  //       if (a.matchSetting(setting)) {
+                  //         log("${jsonEncode(a.toDocument()?.toJson())}");
+                  //
+                  //         // showFoundPassport(a);
+                  //       }
+                  //     }
+                  //   },
+                  //   mrzLogger: (l) {
+                  //     if (l.rawMrzLines.isNotEmpty && l.fixedMrzLines.join().trim().isNotEmpty) {
+                  //       logCount++;
+                  //       lastLog = l;
+                  //       fixed = l.fixedMrzLines;
+                  //       setState(() {});
+                  //
+                  //       // log("log recieved\n${l.fixedMrzLines.join("\n")}");
+                  //       // log("log setted\n${lastLog!.fixedMrzLines.join("\n")}");
+                  //       // log(jsonEncode(l.toJson()));
+                  //     }
+                  //   },
+                  // ),
                   Positioned(
                     bottom: 24,
                     left: 0,
