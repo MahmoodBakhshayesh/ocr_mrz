@@ -29,10 +29,10 @@ packages:
     dependency: transitive
     description:
       name: camera_kit_plus
-      sha256: "424b51743f5003cc391f189dbbe12666c3aa48e5d5cc0c7190e93a73e3c74647"
+      sha256: "9db6e23cb1258f777b8d910c4a7b88f4134fda5cbf35748bbd88c10e8c760d16"
       url: "https://pub.dev"
     source: hosted
-    version: "0.0.46"
+    version: "0.0.48"
   characters:
     dependency: transitive
     description:
@@ -206,7 +206,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.0.89"
+    version: "0.0.97"
   path:
     dependency: transitive
     description:

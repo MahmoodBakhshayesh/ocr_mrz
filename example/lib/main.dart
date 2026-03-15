@@ -74,18 +74,18 @@ class _MyHomePageState extends State<MyHomePage> {
         // log("${reason.name}");
       },
     ),
-    apiConfig: OcrMrzApiConfig(
-      url: "https://documentReader.multidcs.com/api/v1/document2",
-      attachPhoto: false,
-      photoQuality: 35,
-      headers: {"content-type": "application/json", "Authorization": "Bearer $token"},
-      bodyBuilder:
-          (c) => {
-            "relatedId": null,
-            "data": {"rawText": c.map((o) => o.text).toList()},
-          },
-      interval: Duration(seconds: 2),
-    ),
+    // apiConfig: OcrMrzApiConfig(
+    //   url: "https://documentReader.multidcs.com/api/v1/document2",
+    //   attachPhoto: false,
+    //   photoQuality: 35,
+    //   headers: {"content-type": "application/json", "Authorization": "Bearer $token"},
+    //   bodyBuilder:
+    //       (c) => {
+    //         "relatedId": null,
+    //         "data": {"rawText": c.map((o) => o.text).toList()},
+    //       },
+    //   interval: Duration(seconds: 2),
+    // ),
   );
   OcrMrzControllerNew controllerNew = OcrMrzControllerNew(
     apiConfig: OcrMrzApiConfig(
@@ -111,8 +111,8 @@ class _MyHomePageState extends State<MyHomePage> {
     validateExpiryDateValid: true,
     validateDocNumberValid: false,
     validateNames: true,
-    algorithm: ParseAlgorithm.method3,
-    nameValidationMode: NameValidationMode.exact,
+    algorithm: ParseAlgorithm.method2,
+    nameValidationMode: NameValidationMode.contain,
     rotation: 0,
   );
   int logCount = 0;
@@ -180,14 +180,12 @@ class _MyHomePageState extends State<MyHomePage> {
               builder: (BuildContext context) {
                 return SessionLogHistoryListDialog(historyList: controller.getSessionHistory.value);
               },
-
             );
           },
           child: ValueListenableBuilder<List<SessionStatus>>(
             valueListenable: controller.getSessionHistory,
             builder: (context, value, child) {
               return Text("Passport Reader ${sessionList.length}");
-
             },
           ),
         ),
@@ -223,68 +221,68 @@ class _MyHomePageState extends State<MyHomePage> {
             Expanded(
               child: Stack(
                 children: [
-                  OcrMrzReaderNew(
-                    onFoundMrz: (MrzResult result) {
-                      log("we found mrz");
+                  false
+                      ? OcrMrzReaderNew(
+                        onFoundMrz: (MrzResult result) {
+                          log("we found mrz");
 
-                      log(result.toString());
-                    },
-                    onProgress: (s) {
-                      List<String> lines = s["shapedMrz"];
-                      log("\n${lines.join("\n")}");
-                      String summary = s["summaryString"];
-                      log("${summary}");
-                      // log("${s}");
+                          log(result.toString());
+                        },
+                        onProgress: (s) {
+                          // List<String> lines = s["shapedMrz"];
+                          // log("\n${lines.join("\n")}");
+                          // String summary = s["summaryString"];
+                          // log("${summary}");
+                          // log("${s}");
+                        },
+                        controller: controllerNew,
+                      )
+                      : OcrMrzReader(
+                        onSessionChange: (List<SessionStatus> sl) {
+                          if (sl.length > 1) {
+                            sessionList = sl;
+                            setState(() {});
+                          }
+                        },
+                        nameValidations: [
+                          NameValidationData(lastName: "XXXXXX", firstName: "XXXXXX"),
+                          NameValidationData(lastName: "OZOLKALNAS", firstName: "LIENE MARASANA"),
+                        ],
+                        onConsensusChanged: (a) {
+                          // log("onCon changed");
+                          improving = a;
+                          setState(() {});
+                        },
+                        controller: controller,
+                        showFrame: false,
+                        setting: setting,
 
-                    },
+                        countValidation: OcrMrzCountValidation(
+                          // nameValidCount: 5
+                        ),
+                        onFoundMrz: (a) {
+                          log("onFoundMrz ${a.toJson()}");
+                          if (scanning) {
+                            if (a.matchSetting(setting)) {
+                              log("${jsonEncode(a.toDocument()?.toJson())}");
 
+                              // showFoundPassport(a);
+                            }
+                          }
+                        },
+                        mrzLogger: (l) {
+                          if (l.rawMrzLines.isNotEmpty && l.fixedMrzLines.join().trim().isNotEmpty) {
+                            logCount++;
+                            lastLog = l;
+                            fixed = l.fixedMrzLines;
+                            setState(() {});
 
-                    controller: controllerNew,
-                  ),
-                  // OcrMrzReader(
-                  //
-                  //   onSessionChange: (List<SessionStatus> sl) {
-                  //     if (sl.length > 1) {
-                  //       sessionList = sl;
-                  //       setState(() {});
-                  //     }
-                  //   },
-                  //   nameValidations: [NameValidationData(lastName: "XXXXXX", firstName: "XXXXXX")],
-                  //   onConsensusChanged: (a) {
-                  //     // log("onCon changed");
-                  //     improving = a;
-                  //     setState(() {});
-                  //   },
-                  //   controller: controller,
-                  //   showFrame: false,
-                  //   setting: setting,
-                  //
-                  //   countValidation: OcrMrzCountValidation(
-                  //     // nameValidCount: 5
-                  //   ),
-                  //   onFoundMrz: (a) {
-                  //     log("onFoundMrz ${a.toJson()}");
-                  //     if (scanning) {
-                  //       if (a.matchSetting(setting)) {
-                  //         log("${jsonEncode(a.toDocument()?.toJson())}");
-                  //
-                  //         // showFoundPassport(a);
-                  //       }
-                  //     }
-                  //   },
-                  //   mrzLogger: (l) {
-                  //     if (l.rawMrzLines.isNotEmpty && l.fixedMrzLines.join().trim().isNotEmpty) {
-                  //       logCount++;
-                  //       lastLog = l;
-                  //       fixed = l.fixedMrzLines;
-                  //       setState(() {});
-                  //
-                  //       // log("log recieved\n${l.fixedMrzLines.join("\n")}");
-                  //       // log("log setted\n${lastLog!.fixedMrzLines.join("\n")}");
-                  //       // log(jsonEncode(l.toJson()));
-                  //     }
-                  //   },
-                  // ),
+                            // log("log recieved\n${l.fixedMrzLines.join("\n")}");
+                            // log("log setted\n${lastLog!.fixedMrzLines.join("\n")}");
+                            // log(jsonEncode(l.toJson()));
+                          }
+                        },
+                      ),
                   Positioned(
                     bottom: 24,
                     left: 0,
